@@ -26,7 +26,12 @@ RUN pnpm build
 FROM node:24.22-alpine AS runner
 WORKDIR /app
 # Applique les correctifs de sécurité Alpine publiés depuis la sortie de l'image de base.
-RUN apk upgrade --no-cache
+# Image minimale (cours DevOps) : ni npm ni npx dans l'image finale. Ils embarquent leurs
+# propres dépendances, qui remontent des CVE sans servir à l'exécution (node server.js).
+# Même RUN que apk upgrade : pas de couche supplémentaire.
+RUN apk upgrade --no-cache \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+              /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 
 # La version est injectée au build (ex. tag Git) et lue par /api/health.
 ARG APP_VERSION=dev
