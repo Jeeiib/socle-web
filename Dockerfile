@@ -3,7 +3,7 @@
 # Tag précis avec numéro mineur, jamais `latest` : build reproductible.
 
 # ---- Étape 1 : dépendances ----
-FROM node:24.22-alpine AS deps
+FROM node:26.13-alpine AS deps
 WORKDIR /app
 # corepack active la version de pnpm figée dans package.json (packageManager).
 RUN corepack enable
@@ -14,7 +14,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
 # ---- Étape 2 : build ----
-FROM node:24.22-alpine AS build
+FROM node:26.13-alpine AS build
 WORKDIR /app
 RUN corepack enable
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -23,7 +23,7 @@ COPY . .
 RUN pnpm build
 
 # ---- Étape 3 : exécution ----
-FROM node:24.22-alpine AS runner
+FROM node:26.13-alpine AS runner
 WORKDIR /app
 # Applique les correctifs de sécurité Alpine publiés depuis la sortie de l'image de base.
 RUN apk upgrade --no-cache
