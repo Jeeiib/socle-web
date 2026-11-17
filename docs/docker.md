@@ -20,6 +20,20 @@ Le `Dockerfile` produit une image durcie en trois étapes. Chaque choix a une ra
 
 Le `.dockerignore` garde hors du contexte de build les `.env*` (sauf `.env.example`), `.git`, `node_modules`, les clés `*.pem` et les fichiers de CI : un secret local ne peut pas se retrouver dans une couche de l'image.
 
+## Image finale sans npm
+
+L'image finale ne contient ni npm, ni npx, ni corepack : l'application démarre avec `node server.js` et n'en a jamais besoin. Ces outils embarquent leurs propres dépendances (`brace-expansion`, `undici`...) qui remontent des CVE dans Trivy sans servir à l'exécution. Les retirer rend l'image plus petite et le scan plus fiable (règle du cours : image minimale).
+
+## Passer à une version majeure de Node
+
+Dependabot ignore les montées majeures de `node` et de `@types/node` : c'est une décision volontaire. À faire ensemble, dans une même PR :
+
+1. `FROM node:<version>-alpine` dans les 3 étapes du `Dockerfile`.
+2. `.nvmrc`.
+3. `engines.node` dans `package.json`.
+4. `@types/node` à la même version majeure.
+5. Depuis Node 25, corepack n'est plus fourni : ajouter `RUN npm install --global corepack@<version>` avant `corepack enable` dans les étapes `deps` et `build`.
+
 ## Commandes
 
 Construire et lancer à la main :
