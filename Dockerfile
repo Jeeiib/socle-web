@@ -37,9 +37,10 @@ ENV NODE_ENV=production \
     APP_VERSION=${APP_VERSION}
 
 # Seule la sortie standalone est copiée : ni sources, ni devDependencies, ni pnpm.
-# Il n'y a pas de dossier public/ dans ce socle : à ajouter ici si l'app en crée un.
+# public/ (robots.txt, favicon, images) est copié sans condition : un fichier ajouté plus tard est livré.
 COPY --from=build --chown=node:node /app/.next/standalone ./
 COPY --from=build --chown=node:node /app/.next/static ./.next/static
+COPY --from=build --chown=node:node /app/public ./public
 
 # Principe du moindre privilège : le processus ne tourne pas en root.
 USER node

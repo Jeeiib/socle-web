@@ -1,9 +1,12 @@
 node_modules
 .next
 .git
-.env
-.env.*
+.githooks
+.superpowers
+**/.env
+**/.env.*
 !.env.example
+*.pem
 coverage
 *.log
 docs

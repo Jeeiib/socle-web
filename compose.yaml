@@ -8,10 +8,13 @@ services:
     ports:
       - "3000:3000"
     restart: unless-stopped
-    # Durcissement : système de fichiers en lecture seule, seul /tmp est inscriptible.
+    # Durcissement : système de fichiers en lecture seule, seuls /tmp et le cache Next sont inscriptibles.
+    # Next écrit dans .next/cache (ISR, next/image, cache fetch) ; un tmpfs appartient à root par défaut,
+    # d'où uid/gid 1000 (utilisateur node).
     read_only: true
     tmpfs:
       - /tmp
+      - /app/.next/cache:uid=1000,gid=1000
     # Interdit l'élévation de privilèges (setuid, etc.) dans le conteneur.
     security_opt:
       - no-new-privileges:true
