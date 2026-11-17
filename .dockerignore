@@ -6,7 +6,7 @@ node_modules
 **/.env
 **/.env.*
 !.env.example
-*.pem
+**/*.pem
 coverage
 *.log
 docs

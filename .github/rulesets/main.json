@@ -29,11 +29,11 @@
       "parameters": {
         "strict_required_status_checks_policy": true,
         "required_status_checks": [
-          { "context": "qualite" },
-          { "context": "tests" },
-          { "context": "build" },
-          { "context": "docker" },
-          { "context": "actionlint" }
+          { "context": "qualite", "integration_id": 15368 },
+          { "context": "tests", "integration_id": 15368 },
+          { "context": "build", "integration_id": 15368 },
+          { "context": "docker", "integration_id": 15368 },
+          { "context": "actionlint", "integration_id": 15368 }
         ]
       }
     }

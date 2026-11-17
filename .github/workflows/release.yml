@@ -89,4 +89,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
-        run: gh release create "$TAG" --generate-notes --verify-tag
+        # Les tags ne sont posés que depuis un main vert. Un tag avec un tiret
+        # (v1.0.0-rc.1) est une pré-version : elle ne devient pas la "latest".
+        run: |
+          set -euo pipefail
+          opts=(--generate-notes --verify-tag)
+          [[ "$TAG" == *-* ]] && opts+=(--prerelease)
+          gh release create "$TAG" "${opts[@]}"

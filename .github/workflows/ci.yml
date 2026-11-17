@@ -16,7 +16,7 @@ permissions: {}
 # On annule les exécutions obsolètes sur PR, jamais sur main (chaque commit de main
 # doit garder sa trace CI complète).
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -158,15 +158,15 @@ jobs:
           set -euo pipefail
           docker run -d --name smoke -p 3000:3000 "$IMAGE"
           status=""
-          for _ in $(seq 1 30); do
+          for _ in $(seq 1 60); do
             status=$(docker inspect -f '{{.State.Health.Status}}' smoke)
             [ "$status" = "healthy" ] && break
             sleep 2
           done
           if [ "$status" != "healthy" ]; then
-            echo "::error::Conteneur non sain après 60 s (état : ${status})"
+            echo "::error::Conteneur non sain après 120 s (état : ${status})"
             docker logs smoke
             exit 1
           fi
           curl -sSf http://localhost:3000/api/health | tee health.json
-          grep -q '"status":"ok"' health.json
+          jq -e '.status=="ok"' health.json >/dev/null

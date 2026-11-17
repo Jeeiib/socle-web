@@ -7,7 +7,7 @@ racine="$(cd "$(dirname "$0")/.." && pwd)"
 fichier="$racine/.github/rulesets/main.json"
 depot="${1:-$(gh repo view --json nameWithOwner -q .nameWithOwner)}"
 
-id="$(gh api "repos/$depot/rulesets" -q '.[] | select(.name == "main") | .id' | head -n 1)"
+id="$(gh api --paginate "repos/$depot/rulesets" -q '.[] | select(.name == "main") | .id' | head -n 1)"
 
 if [ -n "$id" ]; then
   echo "Mise à jour du ruleset main (id $id) sur $depot"

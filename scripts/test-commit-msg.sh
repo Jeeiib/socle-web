@@ -29,5 +29,10 @@ verifier ko 'Feat: x'
 verifier ko 'feature: x'
 verifier ko 'feat:x'
 verifier ko 'feat: '
+verifier ok 'fixup! feat: ajoute X'
+verifier ok 'squash! fix: y'
+verifier ok 'amend! fix: y'
+verifier ok 'feat(ci/docker): x'
+verifier ko 'feat(Api): x'
 
 exit "$echec"
