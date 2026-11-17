@@ -1,0 +1,10 @@
+# Configuration gitleaks : on étend les règles par défaut.
+[extend]
+useDefault = true
+
+# Allowlist volontairement vide. Règle : autoriser un chemin précis ou une
+# valeur précise, jamais une règle entière.
+# [[allowlists]]
+# description = "Exemple de fixture de test"
+# paths = ['''^src/fixtures/faux-secret\.txt$''']
+# regexes = ['''valeur-exacte-a-ignorer''']

@@ -1,0 +1,24 @@
+name: Évolution
+description: Proposer une amélioration ou une nouvelle fonctionnalité
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: besoin
+    attributes:
+      label: Besoin
+      description: Le problème à résoudre ou l'usage visé.
+    validations:
+      required: true
+  - type: textarea
+    id: proposition
+    attributes:
+      label: Proposition
+      description: La solution envisagée.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives envisagées
+    validations:
+      required: false
