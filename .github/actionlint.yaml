@@ -1,0 +1,4 @@
+# Configuration actionlint : aucun runner auto-hébergé, aucune variable de
+# configuration personnalisée. Le fichier existe pour rendre la config explicite.
+self-hosted-runner:
+  labels: []

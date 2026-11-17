@@ -1,0 +1,4 @@
+# Exceptions Trivy : ce fichier reste VIDE volontairement.
+# Règle : on ne masque une CVE que si elle est inexploitable dans notre contexte,
+# et chaque ligne doit alors porter un commentaire (CVE, raison, date de revue,
+# propriétaire). Sans justification écrite, on corrige ou on met à jour l'image.
