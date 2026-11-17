@@ -1,0 +1,17 @@
+# Lancement local de l'image : `docker compose up -d --build`
+services:
+  app:
+    build:
+      context: .
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    # Durcissement : système de fichiers en lecture seule, seul /tmp est inscriptible.
+    read_only: true
+    tmpfs:
+      - /tmp
+    # Interdit l'élévation de privilèges (setuid, etc.) dans le conteneur.
+    security_opt:
+      - no-new-privileges:true
