@@ -8,13 +8,13 @@ Trois workflows dans `.github/workflows/` : `ci.yml` (qualité), `security.yml` 
 
 Se déclenche sur chaque PR, sur `main` (hors modifications de `**.md` et `docs/**`) et à la demande.
 
-| Job          | Rôle                                                                    | Dépend de          |
-| ------------ | ----------------------------------------------------------------------- | ------------------ |
-| `actionlint` | Analyse les workflows (binaire officiel, somme de contrôle vérifiée)    | rien               |
-| `qualite`    | `pnpm lint`, `pnpm typecheck`, `pnpm format:check`                      | rien               |
-| `tests`      | `pnpm test:coverage` (seuil de 80 % de lignes bloquant), résumé de couverture dans le run | rien |
-| `build`      | `pnpm build`                                                            | `qualite`, `tests` |
-| `docker`     | Construit l'image, la scanne avec Trivy, la lance et teste `/api/health` | `qualite`, `tests` |
+| Job          | Rôle                                                                                      | Dépend de          |
+| ------------ | ----------------------------------------------------------------------------------------- | ------------------ |
+| `actionlint` | Analyse les workflows (binaire officiel, somme de contrôle vérifiée)                      | rien               |
+| `qualite`    | `pnpm lint`, `pnpm typecheck`, `pnpm format:check`                                        | rien               |
+| `tests`      | `pnpm test:coverage` (seuil de 80 % de lignes bloquant), résumé de couverture dans le run | rien               |
+| `build`      | `pnpm build`                                                                              | `qualite`, `tests` |
+| `docker`     | Construit l'image, la scanne avec Trivy, la lance et teste `/api/health`                  | `qualite`, `tests` |
 
 Les cinq noms sont les **checks requis** du ruleset (`.github/rulesets/main.json`). Ne les renommez pas, ne les passez pas en matrice : le nom affiché d'un job de matrice change, et le check requis ne serait plus jamais fourni (la PR resterait bloquée).
 
@@ -28,7 +28,7 @@ Sur chaque PR, sur `main`, chaque lundi à 6 h UTC (pour détecter les CVE publi
 
 Se déclenche sur un tag `v*.*.*`.
 
-1. Job `image` : calcule les tags (semver complet, `major.minor`, SHA), **construit l'image une seule fois**, la scanne avec Trivy, puis pousse sur GHCR exactement l'image scannée. Règle « build once » : si on reconstruisait entre le scan et la publication, on publierait ce qu'on n'a pas scanné.
+1. Job `image` : calcule les tags (semver complet, `major.minor` sauf pré-version, SHA court ; pas de `latest`, un tag mobile contredirait le principe d'immuabilité), **construit l'image une seule fois**, la scanne avec Trivy, puis pousse sur GHCR exactement l'image scannée. Règle « build once » : si on reconstruisait entre le scan et la publication, on publierait ce qu'on n'a pas scanné.
 2. Job `release` : crée la release GitHub avec les notes générées. Un tag avec un tiret (`v1.0.0-rc.1`) donne une pré-version, qui ne devient pas la dernière release.
 
 Les tags ne se posent que depuis une `main` verte : le workflow ne revérifie pas la CI, c'est une règle à respecter.
@@ -43,7 +43,7 @@ Un tag Git (`v7`) est mobile : son propriétaire, ou quelqu'un qui a pris son co
 
 Pour résoudre un SHA : `gh api repos/<owner>/<repo>/commits/<tag> -q .sha` (donne le commit même pour un tag annoté).
 
-Les outils téléchargés (actionlint, gitleaks) le sont par version exacte avec vérification `sha256sum --check`, plutôt que par une action tierce de plus.
+Les outils téléchargés (actionlint, gitleaks) le sont par version exacte avec vérification `sha256sum --check`, plutôt que par une action tierce de plus. Dependabot ne les voit pas : `ACTIONLINT_VERSION` (`ci.yml`), `GITLEAKS_VERSION` (`security.yml`) et le tag de l'image `semgrep/semgrep` se mettent à jour à la main.
 
 ## Permissions minimales
 

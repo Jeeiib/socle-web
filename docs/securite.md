@@ -4,15 +4,15 @@ Plusieurs outils, chacun à une étape du pipeline : aucun ne voit tout, ensembl
 
 ## Les outils et où ils agissent
 
-| Outil          | Cherche                                  | Étape                              | Job ou fichier                                 |
-| -------------- | ---------------------------------------- | ---------------------------------- | ---------------------------------------------- |
-| gitleaks       | Secrets dans le code et l'historique     | Commit (hook local), PR, `main`    | `.githooks/pre-commit`, job `secrets`          |
-| `pnpm audit`   | Dépendances npm vulnérables (gravité haute et plus) | PR, `main`, hebdomadaire | job `dependances`                              |
-| Semgrep        | Failles dans le code (règles TypeScript et Next.js) | PR, `main`              | job `sast`                                     |
-| CodeQL         | Analyse de flux de données (JS/TS)       | PR, `main`                         | job `codeql`                                   |
-| Trivy          | CVE dans l'image Docker                  | PR (job `docker`), release         | `ci.yml`, `release.yml`, `.trivyignore`        |
-| Dependabot     | Mises à jour npm, Docker, Actions        | Hebdomadaire (lundi)               | `.github/dependabot.yml`                       |
-| Secret scanning, push protection | Secrets poussés          | Au push                            | Réglage du dépôt                               |
+| Outil                            | Cherche                                             | Étape                           | Job ou fichier                          |
+| -------------------------------- | --------------------------------------------------- | ------------------------------- | --------------------------------------- |
+| gitleaks                         | Secrets dans le code et l'historique                | Commit (hook local), PR, `main` | `.githooks/pre-commit`, job `secrets`   |
+| `pnpm audit`                     | Dépendances npm vulnérables (gravité haute et plus) | PR, `main`, hebdomadaire        | job `dependances`                       |
+| Semgrep                          | Failles dans le code (règles TypeScript et Next.js) | PR, `main`                      | job `sast`                              |
+| CodeQL                           | Analyse de flux de données (JS/TS)                  | PR, `main`                      | job `codeql`                            |
+| Trivy                            | CVE dans l'image Docker                             | PR (job `docker`), release      | `ci.yml`, `release.yml`, `.trivyignore` |
+| Dependabot                       | Mises à jour npm, Docker, Actions                   | Hebdomadaire (lundi)            | `.github/dependabot.yml`                |
+| Secret scanning, push protection | Secrets poussés                                     | Au push                         | Réglage du dépôt                        |
 
 Les jobs de sécurité sont dans `.github/workflows/security.yml`, qui tourne aussi chaque lundi : une CVE publiée entre deux commits est détectée sans qu'il faille pousser.
 
@@ -27,6 +27,8 @@ En local, le hook `pre-commit` lance gitleaks sur les fichiers indexés s'il est
 CodeQL tourne ici par le workflow avancé (job `codeql`, `github/codeql-action/init` puis `analyze`, avec `security-events: write` pour ce seul job). Le **« default setup » de CodeQL doit rester désactivé** dans les réglages du dépôt (Advanced Security, Code scanning). Avec les deux actifs, deux analyses du même langage publient des résultats et l'envoi du workflow est refusé.
 
 ## Réglages GitHub à activer
+
+**Prérequis : dépôt public, ou GitHub Advanced Security activé sur un dépôt privé.** Sans GHAS sur un dépôt privé, le job `codeql` échoue et les trois réglages ci-dessous sont limités. Dans ce cas, supprimez le job `codeql` de `security.yml` (ce n'est pas un check requis).
 
 À faire une fois par dépôt (aussi dans [demarrer-un-projet.md](demarrer-un-projet.md)) :
 

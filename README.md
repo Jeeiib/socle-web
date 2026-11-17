@@ -10,21 +10,21 @@ Le dépôt est un modèle GitHub : on l'utilise pour démarrer un projet qui a d
 
 ## Ce que contient le socle
 
-| Thème                | Outil                                   | Fichier                                                      |
-| -------------------- | --------------------------------------- | ------------------------------------------------------------ |
-| Application          | Next.js 16, React 19, TypeScript strict | `src/`, `tsconfig.json`                                      |
-| Santé                | Route `/api/health`                     | `src/app/api/health/route.ts`, `src/lib/health.ts`           |
-| Qualité              | ESLint, Prettier                        | `eslint.config.mjs`, `.prettierrc.json`                      |
-| Tests                | Vitest, seuil de couverture 80 %        | `vitest.config.ts`                                           |
-| Conventions          | Conventional Commits, hooks Git         | `.githooks/commit-msg`, `.githooks/pre-commit`               |
-| Protection de `main` | Ruleset GitHub versionné                | `.github/rulesets/main.json`, `scripts/appliquer-ruleset.sh` |
-| Intégration continue | GitHub Actions                          | `.github/workflows/ci.yml`                                   |
-| Sécurité             | gitleaks, pnpm audit, Semgrep, CodeQL   | `.github/workflows/security.yml`, `.gitleaks.toml`           |
-| Image                | Docker multi-étapes, utilisateur `node` | `Dockerfile`, `compose.yaml`, `.dockerignore`                |
-| Scan d'image         | Trivy                                   | `.github/workflows/ci.yml`, `.trivyignore`                   |
-| Livraison            | Release sur tag, image sur GHCR         | `.github/workflows/release.yml`                              |
-| Mises à jour         | Dependabot                              | `.github/dependabot.yml`                                     |
-| Revue                | CODEOWNERS, modèles de PR et d'issue    | `.github/CODEOWNERS`, `.github/pull_request_template.md`     |
+| Thème                | Outil                                                      | Fichier                                                      |
+| -------------------- | ---------------------------------------------------------- | ------------------------------------------------------------ |
+| Application          | Next.js 16, React 19, TypeScript strict                    | `src/`, `tsconfig.json`                                      |
+| Santé                | Route `/api/health`                                        | `src/app/api/health/route.ts`, `src/lib/health.ts`           |
+| Qualité              | ESLint, Prettier                                           | `eslint.config.mjs`, `.prettierrc.json`                      |
+| Tests                | Vitest, seuil de couverture 80 %                           | `vitest.config.ts`                                           |
+| Conventions          | Conventional Commits, hooks Git                            | `.githooks/commit-msg`, `.githooks/pre-commit`               |
+| Protection de `main` | Ruleset GitHub versionné                                   | `.github/rulesets/main.json`, `scripts/appliquer-ruleset.sh` |
+| Intégration continue | GitHub Actions                                             | `.github/workflows/ci.yml`                                   |
+| Sécurité             | gitleaks, pnpm audit, Semgrep, CodeQL                      | `.github/workflows/security.yml`, `.gitleaks.toml`           |
+| Image                | Docker multi-étapes, utilisateur `node`                    | `Dockerfile`, `compose.yaml`, `.dockerignore`                |
+| Scan d'image         | Trivy                                                      | `.github/workflows/ci.yml`, `.trivyignore`                   |
+| Livraison            | Release sur tag, image sur GHCR                            | `.github/workflows/release.yml`                              |
+| Mises à jour         | Dependabot                                                 | `.github/dependabot.yml`                                     |
+| Revue                | CODEOWNERS (revue non bloquante), modèles de PR et d'issue | `.github/CODEOWNERS`, `.github/pull_request_template.md`     |
 
 ## Démarrer en 5 minutes
 
@@ -80,7 +80,7 @@ Avant de pousser : `pnpm lint && pnpm typecheck && pnpm format:check && pnpm tes
 │   ├── workflows/          ci.yml, security.yml, release.yml
 │   ├── rulesets/main.json  Règles de protection de la branche main
 │   ├── dependabot.yml      Mises à jour automatiques
-│   ├── CODEOWNERS          Relecteurs obligatoires
+│   ├── CODEOWNERS          Relecteurs désignés (revue non bloquante : `require_code_owner_review` est à `false` dans le ruleset, à passer à `true` en équipe)
 │   └── ISSUE_TEMPLATE/     Modèles d'issues
 ├── docs/                   Guides détaillés
 ├── scripts/                appliquer-ruleset.sh, test-commit-msg.sh

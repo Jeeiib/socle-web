@@ -6,19 +6,19 @@ Des conventions strictes rendent l'historique lisible, les versions automatisabl
 
 Format : `type(portée optionnelle)!: description`. La description est en français, le type en anglais.
 
-| Type       | Usage                                           |
-| ---------- | ----------------------------------------------- |
-| `feat`     | Nouvelle fonctionnalité                         |
-| `fix`      | Correction de bug                               |
-| `docs`     | Documentation seule                             |
-| `style`    | Formatage, sans effet sur le code               |
-| `refactor` | Réécriture sans changement de comportement      |
-| `perf`     | Amélioration de performance                     |
-| `test`     | Ajout ou correction de tests                    |
-| `build`    | Dépendances, outillage de build, Docker         |
-| `ci`       | Workflows GitHub Actions                        |
-| `chore`    | Tâches diverses                                 |
-| `revert`   | Annulation d'un commit                          |
+| Type       | Usage                                      |
+| ---------- | ------------------------------------------ |
+| `feat`     | Nouvelle fonctionnalité                    |
+| `fix`      | Correction de bug                          |
+| `docs`     | Documentation seule                        |
+| `style`    | Formatage, sans effet sur le code          |
+| `refactor` | Réécriture sans changement de comportement |
+| `perf`     | Amélioration de performance                |
+| `test`     | Ajout ou correction de tests               |
+| `build`    | Dépendances, outillage de build, Docker    |
+| `ci`       | Workflows GitHub Actions                   |
+| `chore`    | Tâches diverses                            |
+| `revert`   | Annulation d'un commit                     |
 
 Un `!` après le type (ou la portée) signale un changement incompatible : `feat(api)!: renomme la route de santé`.
 
@@ -48,13 +48,13 @@ Les PR sont fusionnées en **squash** (c'est la seule méthode autorisée par le
 
 Préfixez chaque remarque pour que l'auteur sache quoi en faire :
 
-| Préfixe       | Sens                                          |
-| ------------- | --------------------------------------------- |
-| `nitpick:`    | Détail de style, facultatif                   |
-| `suggestion:` | Proposition, à discuter                       |
+| Préfixe       | Sens                                            |
+| ------------- | ----------------------------------------------- |
+| `nitpick:`    | Détail de style, facultatif                     |
+| `suggestion:` | Proposition, à discuter                         |
 | `question:`   | Besoin de comprendre, pas de changement demandé |
-| `issue:`      | Problème à corriger avant de fusionner        |
-| `praise:`     | Ce qui est bien fait                          |
+| `issue:`      | Problème à corriger avant de fusionner          |
+| `praise:`     | Ce qui est bien fait                            |
 
 Le ruleset exige que tous les fils de revue soient résolus avant la fusion.
 

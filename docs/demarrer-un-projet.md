@@ -7,8 +7,10 @@ Check-list à suivre une fois le dépôt créé avec **Use this template**. Comp
 Le socle porte son propre nom ; remplacez-le partout :
 
 - `package.json` : champs `name` (et `version` si besoin) ;
-- `README.md` : titre, description, et les trois badges (remplacer `Jeeiib/socle-web` par `<vous>/<votre-projet>`) ;
+- `README.md` : titre, description, et les deux badges CI et Sécurité (le badge de licence est local) (remplacer `Jeeiib/socle-web` par `<vous>/<votre-projet>`) ;
 - `.github/CODEOWNERS` : remplacez `@Jeeiib` par votre identifiant GitHub ou votre équipe ;
+- `src/app/page.tsx` : le titre `h1` et le lien vers `Jeeiib/socle-web#readme` ;
+- `src/app/layout.tsx` : le `title` des métadonnées ;
 - `LICENSE` : nom du titulaire et année ;
 - `SECURITY.md` : adaptez-le si vous changez de processus de signalement.
 
@@ -46,14 +48,16 @@ Effet : plus de push direct sur `main`, historique linéaire, fusion en squash u
 
 Dans **Settings** du dépôt :
 
-| Réglage                                         | Où                                         | Pourquoi                                                              |
-| ----------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------------- |
-| Squash seul, autres méthodes de fusion décochées | General, Pull Requests                     | Un commit par PR, historique lisible                                  |
-| Suppression automatique des branches fusionnées  | General, Pull Requests                     | Pas de branches mortes                                                |
-| Dependabot alerts                               | Advanced Security                          | Alerte sur les dépendances vulnérables                                |
-| Secret scanning et push protection              | Advanced Security                          | Bloque un secret avant qu'il n'entre dans l'historique                |
-| Private vulnerability reporting                 | Advanced Security                          | Rend effectif le signalement privé décrit dans `SECURITY.md`          |
-| **CodeQL default setup : laisser désactivé**     | Advanced Security, Code scanning           | Voir ci-dessous                                                       |
+| Réglage                                          | Où                               | Pourquoi                                                     |
+| ------------------------------------------------ | -------------------------------- | ------------------------------------------------------------ |
+| Squash seul, autres méthodes de fusion décochées | General, Pull Requests           | Un commit par PR, historique lisible                         |
+| Suppression automatique des branches fusionnées  | General, Pull Requests           | Pas de branches mortes                                       |
+| Dependabot alerts                                | Advanced Security                | Alerte sur les dépendances vulnérables                       |
+| Secret scanning et push protection               | Advanced Security                | Bloque un secret avant qu'il n'entre dans l'historique       |
+| Private vulnerability reporting                  | Advanced Security                | Rend effectif le signalement privé décrit dans `SECURITY.md` |
+| **CodeQL default setup : laisser désactivé**     | Advanced Security, Code scanning | Voir ci-dessous                                              |
+
+**Prérequis : dépôt public, ou GitHub Advanced Security activé sur un dépôt privé.** Sur un dépôt privé sans GHAS, le job `codeql` échoue, et secret scanning, push protection et signalement privé de vulnérabilité sont limités. Dans ce cas, supprimez le job `codeql` de `.github/workflows/security.yml` (il n'est pas un check requis du ruleset).
 
 CodeQL tourne déjà via le workflow avancé `.github/workflows/security.yml` (job `codeql`). Si le « default setup » de GitHub est aussi actif, les deux publient des résultats pour le même langage et l'envoi du second est refusé : la CI échoue. Gardez donc **un seul** des deux, et ici c'est le workflow.
 
