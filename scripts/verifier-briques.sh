@@ -9,6 +9,7 @@ IMAGE_ACTIONLINT="rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0
 IMAGE_COMPOSE="docker:29.0.0-cli@sha256:87858a6dd14149240f4a2c33e0ec0f32a5ac1bb2548c04f5a20694ea25cb6157"
 IMAGE_TOFU="ghcr.io/opentofu/opentofu:1.13.9@sha256:f5aef7f2632b490e3c289a239d7974497d0583f3df6bfa35e8eb31a367ee5ec0"
 IMAGE_PYTHON="python:3.13-slim@sha256:e48f59cdba69a3cbd9ed2cf0f348d90d45a8d350d98134cf1070bc106ee9ed90"
+IMAGE_REGISTRY="registry:2@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373"
 ANSIBLE_CORE_VERSION="2.20.11"
 
 racine="$(cd "$(dirname "$0")/.." && pwd)"
@@ -221,15 +222,77 @@ EOS
   )
 }
 
-# --- iac-opentofu : format, init sans backend (lockfile en lecture seule) et validation, sur une copie.
+# --- iac-opentofu : format, init sans backend et validation ; puis cycle de vie réel sur le démon local
+# (registre local, apply, plan sans écart, santé de l'application, destroy). Copie de travail sous .verif-tmp.
 verifier_iac_opentofu() {
   local infra="$tmp/iac-infra"
   mkdir -p "$infra"
   cp -R briques/iac-opentofu/infra/. "$infra/"
-  local tofu=(docker run --rm -v "$infra:/infra" -w /infra "$IMAGE_TOFU")
+  local tofu=(docker run --rm --user "$(id -u):$(id -g)" -v "$infra:/infra" -w /infra "$IMAGE_TOFU")
   "${tofu[@]}" fmt -check -recursive -diff || return 1
   "${tofu[@]}" init -backend=false -lockfile=readonly -input=false >/dev/null || return 1
   "${tofu[@]}" validate || return 1
+
+  # Cycle de vie : le provider tire l'image depuis un registre, d'où un registre local (localhost est
+  # accepté en HTTP par le démon). Les conteneurs outils tournent en root (socket Docker) et rendent
+  # les fichiers à l'utilisateur courant en fin de commande.
+  local vie="$tmp/iac-vie"
+  mkdir -p "$vie"
+  cp -R briques/iac-opentofu/infra/. "$vie/"
+  local port_registre port_app
+  port_registre="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')"
+  port_app="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])')"
+  local image="localhost:$port_registre/socle-verif"
+  (
+    # shellcheck disable=SC2329 # appelée par le trap
+    nettoyer() {
+      tofu_vie destroy -auto-approve >/dev/null 2>&1 || true
+      docker rm -f app-verif-app-1 app-verif-db-1 socle-verif-registre >/dev/null 2>&1 || true
+      docker network rm app-verif >/dev/null 2>&1 || true
+      docker volume rm app-verif_db-data >/dev/null 2>&1 || true
+      docker rmi -f "$image:0.0.0" socle-verif-build:0.0.0 >/dev/null 2>&1 || true
+    }
+    tofu_vie() {
+      docker run --rm -v "$vie:/infra" -w /infra -v /var/run/docker.sock:/var/run/docker.sock \
+        -e TF_IN_AUTOMATION=1 -e TF_INPUT=0 -e TF_VAR_image="$image" -e TF_VAR_image_tag=0.0.0 \
+        -e TF_VAR_app_port="$port_app" -e TF_VAR_environment=verif \
+        --entrypoint sh "$IMAGE_TOFU" -c '
+          tofu "$@"; code=$?
+          chown -R '"$(id -u):$(id -g)"' /infra
+          exit $code' tofu "$@"
+    }
+    trap nettoyer EXIT
+
+    docker build -q --build-arg APP_VERSION=0.0.0 -t socle-verif-build:0.0.0 . >/dev/null || exit 1
+    docker run -d --name socle-verif-registre -p "127.0.0.1:$port_registre:5000" "$IMAGE_REGISTRY" >/dev/null || exit 1
+    docker tag socle-verif-build:0.0.0 "$image:0.0.0"
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+      docker push -q "$image:0.0.0" >/dev/null 2>&1 && break
+      sleep 1
+    done
+    docker image inspect "$image:0.0.0" >/dev/null || exit 1
+    # Le provider doit tirer l'image depuis le registre, pas la trouver déjà en local.
+    docker rmi -f "$image:0.0.0" >/dev/null
+
+    tofu_vie init -lockfile=readonly -backend-config=path=terraform.tfstate >/dev/null || exit 1
+    echo "-- apply"
+    tofu_vie apply -auto-approve -no-color >/dev/null || { tofu_vie apply -auto-approve -no-color | tail -30; exit 1; }
+    echo "-- plan sans écart attendu"
+    code=0
+    tofu_vie plan -detailed-exitcode -no-color >"$vie/plan.log" 2>&1 || code=$?
+    if [ "$code" != 0 ]; then cat "$vie/plan.log"; echo "plan : code $code (0 attendu, perpétuelle dérive ?)"; exit 1; fi
+    echo "-- santé de l'application"
+    sante=""
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+      sante="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$port_app/api/health" || true)"
+      [ "$sante" = 200 ] && break
+      sleep 2
+    done
+    [ "$sante" = 200 ] || { echo "/api/health attendu 200, obtenu $sante"; exit 1; }
+    echo "-- destroy"
+    tofu_vie destroy -auto-approve -no-color >/dev/null || exit 1
+    [ -z "$(docker ps -aq --filter name=app-verif-)" ] || { echo "conteneurs restants après destroy"; exit 1; }
+  )
 }
 
 # --- ansible : syntaxe, puis deux passages réels en connexion locale dans un dossier temporaire.
@@ -239,13 +302,13 @@ verifier_ansible() {
   mkdir -p "$jeu/home"
   cp -R briques/ansible/ansible/. "$jeu/"
   printf '[prod]\nlocalhost ansible_connection=local ansible_python_interpreter=auto_silent\n' > "$jeu/inventaire-local.ini"
-  docker run --rm -v "$jeu:/jeu" -w /jeu -e HOME=/jeu/home -e ANSIBLE_NOCOLOR=1 "$IMAGE_PYTHON" bash -c '
+  docker run --rm --user "$(id -u):$(id -g)" -v "$jeu:/jeu" -w /jeu -e HOME=/jeu/home -e PIP_NO_CACHE_DIR=1 -e PYTHONUSERBASE=/jeu/home/.local -e PATH=/jeu/home/.local/bin:/usr/local/bin:/usr/bin:/bin -e ANSIBLE_NOCOLOR=1 "$IMAGE_PYTHON" bash -c '
     set -euo pipefail
-    pip install -q --no-cache-dir --root-user-action=ignore "ansible-core=='"$ANSIBLE_CORE_VERSION"'" >/dev/null
+    pip install -q --user "ansible-core=='"$ANSIBLE_CORE_VERSION"'" >/dev/null
     ansible-playbook --syntax-check -i inventory.ini.example preparer-prod.yml -e image=ghcr.io/exemple/projet
     lancer() {
       ansible-playbook -i inventaire-local.ini preparer-prod.yml \
-        -e image=ghcr.io/exemple/projet -e prod_dir=/jeu/prod -e app_user=root -e app_become=false
+        -e image=ghcr.io/exemple/projet -e prod_dir=/jeu/prod -e app_user= -e app_become=false
     }
     lancer > passage1.log || { cat passage1.log; exit 1; }
     lancer > passage2.log || { cat passage2.log; exit 1; }

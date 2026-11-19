@@ -17,13 +17,13 @@ L'environnement de staging décrit en code avec OpenTofu : réseau, volume Postg
 ## Quand ne pas la prendre
 
 - Un seul serveur sans staging : `compose.prod.yaml` et `deploy.sh` suffisent, le code d'infrastructure ajouterait un outil de plus à maintenir.
-- On utilise déjà `compose.staging.yaml` et personne ne souhaite le remplacer : les deux décrivent le même environnement, il faut en choisir un.
+- La brique `staging-prod` est présente : les deux gèrent le même staging, il faut en choisir un. Celui de l'IaC n'a pas de proxy ni de TLS, il ne fournit pas le smoke test HTTPS ni la porte avant la production de `staging-prod`.
 
 ## Prérequis
 
 Brique `deploiement-serveur` (clé SSH, empreinte du serveur, utilisateur `deploy`). Côté poste : OpenTofu `1.13.9` (`brew install opentofu`) pour lancer l'apply. L'image de l'application doit exister sur GHCR (`release.yml`).
 
-Si la brique `staging-prod` est présente, l'IaC prend la place de son `compose.staging.yaml` : les noms sont les mêmes (projet et réseau `app-staging`, volume `app-staging_db-data`). Supprimer ce fichier et son usage dans `deploy.yml` à la main, aucun fichier n'est remplacé automatiquement.
+Le staging géré ici se met à jour par un `tofu apply` manuel : la CI ne fait jamais d'apply, parce que le state n'a qu'un seul opérateur (voir plus bas). Il se joint par un tunnel SSH (`ssh -L 8081:127.0.0.1:8081 deploy@203.0.113.10`) ou par un proxy à soi. Sur le serveur, l'utilisateur `deploy` doit être dans le groupe `docker` et le client `docker` doit y être installé : le fournisseur `ssh://` s'en sert.
 
 ## Fichiers apportés
 
@@ -56,7 +56,7 @@ Si la brique `staging-prod` est présente, l'IaC prend la place de son `compose.
    tofu init -lockfile=readonly -backend-config="path=terraform.tfstate"
    tofu import docker_volume.pgdata app-staging_db-data
    ```
-   Le mot de passe Postgres du volume existant doit être celui de `db_password` (`TF_VAR_db_password`), sinon l'application ne se connecte plus : Postgres ne le relit pas à chaque démarrage.
+   Le mot de passe Postgres du volume existant doit être celui de `db_password` (`TF_VAR_db_password`), sinon l'application ne se connecte plus : Postgres ne le relit pas à chaque démarrage. Le même mot de passe va dans le secret d'environnement `STAGING_DB_PASSWORD` (`gh secret set STAGING_DB_PASSWORD --env staging`), sinon le plan de la CI voudrait recréer `db` et `app`. Sur une installation neuve, ne pas créer ce secret : une valeur vide laisse OpenTofu générer le mot de passe (`coalesce` ignore la chaîne vide).
 4. Créer ou mettre à jour l'environnement : `tofu apply`, puis envoyer le state au serveur :
    ```bash
    chmod 600 terraform.tfstate
@@ -72,7 +72,7 @@ Le state contient le mot de passe de la base : il reste hors de Git, en `600`, s
 
 ## Vérification
 
-- `bash scripts/verifier-briques.sh iac-opentofu` : `tofu fmt -check`, `tofu init -backend=false -lockfile=readonly` et `tofu validate` dans un conteneur OpenTofu épinglé.
+- `bash scripts/verifier-briques.sh iac-opentofu` : `tofu fmt -check`, `tofu init -backend=false -lockfile=readonly` et `tofu validate` dans un conteneur OpenTofu épinglé, puis un cycle réel sur le démon Docker local : image du socle poussée dans un registre local, `apply`, `plan -detailed-exitcode` à 0, `/api/health` en 200, `destroy`. Les ressources de test s'appellent `app-verif`.
 - Après un apply : `tofu plan -detailed-exitcode` rend 0 (rien à faire), `docker ps` montre les deux conteneurs `healthy`.
 - Sur une PR touchant `infra/` : le commentaire `Plan OpenTofu : staging` apparaît et se met à jour à chaque push.
 
@@ -87,3 +87,5 @@ Le state contient le mot de passe de la base : il reste hors de Git, en `600`, s
 - Le state et `terraform.tfvars` ne vont jamais dans Git (`infra/.gitignore`) ; `terraform.tfstate.backup` non plus.
 - Jamais `StrictHostKeyChecking=no` : sans `DEPLOY_KNOWN_HOSTS` exact, le plan échoue, et c'est voulu.
 - Dépôt public : `DEPLOY_HOST` est une variable d'environnement GitHub, jamais dans les fichiers de `infra/`.
+- Ne pas mettre de relecteurs obligatoires sur l'environnement `staging` : le job `iac-plan` attendrait une approbation et le commentaire de PR n'arriverait jamais.
+- Confiance : toute personne qui peut écrire dans le dépôt peut modifier `iac.yml` ou `infra/` dans une PR du même dépôt et atteindre `DEPLOY_SSH_KEY`. Réserver l'écriture aux personnes de confiance, avec une clé qui n'ouvre que le staging si possible.

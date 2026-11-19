@@ -9,7 +9,7 @@ variable "image" {
   description = "Image de l'application sans tag, en minuscules (ex. ghcr.io/mon-organisation/mon-projet)."
 
   validation {
-    condition     = can(regex("^[a-z0-9][a-z0-9./_-]*$", var.image))
+    condition     = can(regex("^[a-z0-9][a-z0-9._-]*(:[0-9]+)?(/[a-z0-9._-]+)*$", var.image))
     error_message = "image doit être en minuscules et sans tag (ex. ghcr.io/mon-organisation/mon-projet)."
   }
 }

@@ -38,7 +38,7 @@
       ansible.builtin.file:
         path: "{{ prod_dir }}/{{ item.path }}"
         state: directory
-        owner: "{{ app_user }}"
+        owner: "{{ app_user or omit }}"
         mode: "{{ item.mode }}"
       become: "{{ app_become | bool }}"
       loop:
@@ -50,6 +50,8 @@
         src: env.j2
         dest: "{{ prod_dir }}/.env"
         mode: "0600"
+      diff: false # --diff afficherait le mot de passe
+      no_log: true
       notify: Relancer la stack
 
   handlers:
@@ -67,6 +69,7 @@
       ansible.builtin.shell:
         cmd: |
           set -eu
+          [ -f .deployed_tag ] || exit 0
           tag="$(cat .deployed_tag)"
           IMAGE_TAG="${tag#v}" docker compose up -d --wait --wait-timeout 120
         executable: /bin/bash

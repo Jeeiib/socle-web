@@ -18,6 +18,7 @@ Le déploiement en deux temps : chaque version passe d'abord par un environnemen
 
 - Projet personnel ou outil interne : un seul environnement et un retour arrière rapide suffisent.
 - Le serveur n'a pas de quoi faire tourner deux environnements côte à côte.
+- La brique `iac-opentofu` est présente : les deux gèrent le même staging, il faut en choisir un.
 
 ## Prérequis
 
