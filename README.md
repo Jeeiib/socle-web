@@ -66,19 +66,19 @@ Une brique est un ensemble de fichiers optionnels (workflow, compose, scripts) a
 SOCLE_DIR=<clone du socle> scripts/ajouter-brique.sh <nom>
 ```
 
-| Brique                                                             | Rôle                                                                                 | Prérequis           |
-| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------ | ------------------- |
-| [postgres-ci](briques/postgres-ci/BRIQUE.md)                       | Job `integration` : tests d'intégration contre une vraie base PostgreSQL 16          | aucun               |
-| [deploiement-serveur](briques/deploiement-serveur/BRIQUE.md)       | Déploiement de l'image sur un serveur par SSH, Nginx TLS, retour arrière automatique | aucun               |
-| [staging-prod](briques/staging-prod/BRIQUE.md)                     | Déploiement en deux temps : staging, puis production après approbation               | deploiement-serveur |
-| [sauvegardes](briques/sauvegardes/BRIQUE.md)                       | PostgreSQL à côté de l'application, dump avant chaque déploiement, restauration      | deploiement-serveur |
-| [iac-opentofu](briques/iac-opentofu/BRIQUE.md)                     | Staging décrit en code avec OpenTofu, plan commenté sur les PR, détection de dérive  | deploiement-serveur |
-| [ansible](briques/ansible/BRIQUE.md)                               | Playbook rejouable qui prépare le serveur de production                              | aucun               |
-| [logs-metriques-next](briques/logs-metriques-next/BRIQUE.md)       | Journaux JSON et métriques Prometheus (RED) pour l'application Next.js               | aucun               |
-| [logs-metriques-express](briques/logs-metriques-express/BRIQUE.md) | Journaux JSON et métriques Prometheus (RED) pour une API Express                     | aucun               |
-| [monitoring](briques/monitoring/BRIQUE.md)                         | Prometheus, sonde blackbox, Alertmanager, Grafana, alertes sur le téléphone (ntfy)   | deploiement-serveur |
-| [incidents](briques/incidents/BRIQUE.md)                           | Runbook d'incidents et modèle de post-mortem sans blâme                              | aucun               |
-| [dast-zap](briques/dast-zap/BRIQUE.md)                             | Scan dynamique ZAP baseline du staging                                               | aucun               |
+| Brique                                                             | Rôle                                                                                        | Prérequis           |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- | ------------------- |
+| [postgres-ci](briques/postgres-ci/BRIQUE.md)                       | Job `integration` (check requis à ajouter au ruleset) : tests d'intégration, PostgreSQL 16  | aucun               |
+| [deploiement-serveur](briques/deploiement-serveur/BRIQUE.md)       | Déploiement de l'image sur un serveur par SSH, Nginx TLS, retour arrière automatique        | aucun               |
+| [staging-prod](briques/staging-prod/BRIQUE.md)                     | Déploiement en deux temps : staging, puis production (alternative à iac-opentofu)           | deploiement-serveur |
+| [sauvegardes](briques/sauvegardes/BRIQUE.md)                       | PostgreSQL à côté de l'application, dump avant chaque déploiement, restauration             | deploiement-serveur |
+| [iac-opentofu](briques/iac-opentofu/BRIQUE.md)                     | Staging décrit en code avec OpenTofu, plan commenté sur les PR (alternative à staging-prod) | deploiement-serveur |
+| [ansible](briques/ansible/BRIQUE.md)                               | Playbook rejouable qui prépare le serveur de production                                     | aucun               |
+| [logs-metriques-next](briques/logs-metriques-next/BRIQUE.md)       | Journaux JSON et métriques Prometheus (RED) pour l'application Next.js                      | aucun               |
+| [logs-metriques-express](briques/logs-metriques-express/BRIQUE.md) | Journaux JSON et métriques Prometheus (RED) pour une API Express                            | aucun               |
+| [monitoring](briques/monitoring/BRIQUE.md)                         | Prometheus, sonde blackbox, Alertmanager, Grafana, alertes sur le téléphone (ntfy)          | deploiement-serveur |
+| [incidents](briques/incidents/BRIQUE.md)                           | Runbook d'incidents et modèle de post-mortem sans blâme                                     | aucun               |
+| [dast-zap](briques/dast-zap/BRIQUE.md)                             | Scan dynamique ZAP baseline du staging                                                      | aucun               |
 
 Détails du format, des codes de retour et de la vérification dans [briques/README.md](briques/README.md).
 

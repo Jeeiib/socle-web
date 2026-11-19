@@ -58,7 +58,8 @@ Une fois les briques choisies, supprimez ce qui ne sert qu'au catalogue :
 
 - le dossier `briques/` ;
 - `scripts/test-ajouter-brique.sh` et `scripts/verifier-briques.sh` ;
-- le job `briques` de `.github/workflows/ci.yml` et son check dans `.github/rulesets/main.json` (sinon la PR attend un check qui ne tourne plus).
+- le job `briques` de `.github/workflows/ci.yml` et son check dans `.github/rulesets/main.json` (sinon la PR attend un check qui ne tourne plus) ;
+- la section « Briques » de `CLAUDE.md`.
 
 `scripts/ajouter-brique.sh` reste, pour ajouter une brique plus tard : `SOCLE_DIR` pointe alors sur un clone du socle. Le ruleset étant déjà appliqué à l'étape 4, relancez `scripts/appliquer-ruleset.sh` après avoir retiré le check `briques` de `.github/rulesets/main.json`.
 

@@ -100,6 +100,8 @@ Chaque release publie l'image sur GHCR avec une attestation de provenance et un 
 gh attestation verify oci://ghcr.io/<dépôt>:<version> --owner <propriétaire>
 ```
 
+Le tag de l'image n'a pas de `v` : pour la release `v1.2.3`, la version est `1.2.3` (`ghcr.io/<dépôt>:1.2.3`).
+
 ## Signaler une vulnérabilité
 
 Voir [SECURITY.md](../SECURITY.md).
