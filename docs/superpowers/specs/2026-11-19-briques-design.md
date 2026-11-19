@@ -92,7 +92,7 @@ Script `scripts/ajouter-brique.sh <nom> [dossier-du-projet]` : copie les fichier
 **refuse d'écraser** un fichier existant (il liste les conflits et s'arrête), vérifie que les briques prérequises sont
 présentes, puis affiche les étapes d'activation de la fiche. Le skill l'utilise ; on peut aussi le lancer à la main.
 
-Le script lit les briques dans le clone local du socle (`/Volumes/SSD-JB/Dev/socle-web`), ou à défaut les télécharge
+Le script lit les briques dans le clone local du socle (`<clone local du socle>`), ou à défaut les télécharge
 depuis `Jeeiib/socle-web` sur GitHub (pour un autre poste ou une autre personne).
 
 À la création d'un projet depuis le modèle, `briques/` est supprimé du nouveau projet (étape de
@@ -150,7 +150,7 @@ déclenche et choisit les bonnes briques.
 - Le socle est public : aucun secret, aucune donnée personnelle dans les briques.
 - Travail sur une branche et PR : le ruleset du socle interdit le push direct sur `main`.
 
-## Décisions prises après la relecture (mes choix, à vérifier par JB)
+## Décisions prises après la relecture (mes choix, à vérifier par moi)
 
 1. **Une brique qui complète une autre** : pas de fusion automatique de fichiers.
    - Points d'extension posés par `deploiement-serveur` : `deploy.sh` lance, s'ils existent, les scripts de

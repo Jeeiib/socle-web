@@ -51,4 +51,4 @@ La CI exécute aussi `scripts/test-ajouter-brique.sh`, qui teste le script d'ajo
 
 - Dependabot : les workflows et images des briques ne sont pas suivis dans le socle ; dans un projet dérivé ils le sont une fois copiés à leur place (`.github/workflows`).
 - `paths-ignore` : si un workflow ignore les fichiers `*.md` ou `docs/**` et que son job est un check requis, une PR de documentation reste bloquée en attente d'un check qui ne démarre jamais. Ne pas ajouter `paths-ignore` à un workflow dont un job est requis.
-- Docker avec Colima sur Mac : si le socket est introuvable, exporter `DOCKER_HOST=unix://$HOME/.colima/default/docker.sock`. Colima ne monte que `/Users/<moi>` et `/Volumes/SSD-JB` : les dossiers temporaires montés dans un conteneur vivent sous `.verif-tmp/`.
+- Docker avec Colima sur Mac : si le socket est introuvable, exporter `DOCKER_HOST=unix://$HOME/.colima/default/docker.sock`. Colima ne monte que le dossier personnel et les volumes déclarés dans sa configuration : les dossiers temporaires montés dans un conteneur vivent sous `.verif-tmp/`.
