@@ -321,6 +321,41 @@ verifier_ansible() {
   '
 }
 
+# --- logs-metriques-next : la brique appliquée à une copie du socle (fichiers versionnés, HEAD),
+# prom-client ajouté comme le dit la fiche, puis tests, typage et lint du projet dérivé.
+verifier_logs_metriques_next() {
+  local app="$tmp/logs-metriques-next"
+  mkdir -p "$app"
+  git archive HEAD | tar -x -C "$app"
+  SOCLE_DIR="$racine" bash scripts/ajouter-brique.sh logs-metriques-next "$app" >/dev/null || return 1
+  (
+    cd "$app"
+    pnpm install --frozen-lockfile >/dev/null || exit 1
+    pnpm add prom-client@^15 >/dev/null || exit 1
+    pnpm test && pnpm typecheck && pnpm lint
+  )
+}
+
+# --- logs-metriques-express : projet minimal (Express, prom-client, vitest, supertest) avec les sources de la brique.
+verifier_logs_metriques_express() {
+  local app="$tmp/logs-metriques-express"
+  mkdir -p "$app"
+  cp -R briques/logs-metriques-express/src "$app/"
+  cat > "$app/package.json" <<'EOP'
+{
+  "name": "verif-logs-metriques-express",
+  "private": true,
+  "type": "module"
+}
+EOP
+  (
+    cd "$app"
+    pnpm add --ignore-workspace express@^5 prom-client@^15 >/dev/null || exit 1
+    pnpm add --ignore-workspace -D vitest@^5 supertest@^7 >/dev/null || exit 1
+    pnpm exec vitest run
+  )
+}
+
 # --- contrôles propres à chaque brique
 for b in $selection; do
   fonction="verifier_$(echo "$b" | tr '-' '_')"
