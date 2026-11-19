@@ -13,3 +13,10 @@ docs
 .github
 Dockerfile
 compose.yaml
+briques
+.verif-tmp
+infra/terraform.tfstate*
+**/.terraform
+backups
+certs
+monitoring/secrets

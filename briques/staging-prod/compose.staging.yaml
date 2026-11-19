@@ -1,0 +1,62 @@
+# Staging : même image et mêmes contrôles que compose.prod.yaml, seuls changent les noms et les ports.
+# Vit dans STAGING_DIR avec son propre .env (COMPOSE_FILE=compose.staging.yaml).
+name: app-staging
+
+services:
+  app:
+    image: ${IMAGE:?IMAGE manquant dans .env}:${IMAGE_TAG:?IMAGE_TAG manquant (posé par deploy.sh)}
+    env_file:
+      - .env
+    restart: unless-stopped
+    # Système de fichiers en lecture seule ; Next écrit dans .next/cache (ISR, next/image),
+    # le tmpfs appartient à l'utilisateur node (uid 1000).
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/.next/cache:uid=1000,gid=1000
+    security_opt:
+      - no-new-privileges:true
+    # Identique au HEALTHCHECK du Dockerfile : pas de curl dans l'image.
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    # Pas de ports : l'application n'est joignable que par le proxy.
+
+  proxy:
+    image: nginx:1.29.8-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de
+    # Seul service qui publie des ports ; 8080 et 8443 par défaut pour ne pas heurter la prod sur le même serveur.
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+      - "${HTTPS_PORT:-8443}:443"
+    volumes:
+      - ./deploy/nginx/app.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://127.0.0.1/nginx-health || exit 1",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+# Réseau distinct de celui de la prod (app-prod).
+networks:
+  default:
+    name: app-staging

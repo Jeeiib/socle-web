@@ -22,6 +22,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -76,6 +78,41 @@ jobs:
           while IFS= read -r tag; do
             [ -n "$tag" ] && docker push "$tag"
           done <<< "$TAGS"
+      # Digest du manifest poussé : c'est lui que les attestations signent.
+      - name: Récupérer le digest publié
+        id: digest
+        env:
+          IMAGE_VERSION: ${{ env.IMAGE }}:${{ steps.meta.outputs.version }}
+        run: |
+          set -euo pipefail
+          digest=$(docker buildx imagetools inspect "$IMAGE_VERSION" --format '{{json .Manifest.Digest}}' | tr -d '"')
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+      - name: Générer le SBOM (CycloneDX)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: ${{ env.IMAGE }}:${{ steps.meta.outputs.version }}
+          format: cyclonedx
+          output: sbom.cdx.json
+      # actions/attest remplace attest-build-provenance et attest-sbom (devenus de simples enveloppes).
+      - name: Attester la provenance de l'image
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.digest.outputs.digest }}
+          push-to-registry: true
+      - name: Attester le SBOM de l'image
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.digest.outputs.digest }}
+          sbom-path: sbom.cdx.json
+          push-to-registry: true
+      - name: Conserver le SBOM pour la release
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sbom
+          path: sbom.cdx.json
+          if-no-files-found: error
 
   release:
     name: release
@@ -85,6 +122,10 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Récupérer le SBOM
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: sbom
       - name: Créer la release GitHub
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -96,4 +137,4 @@ jobs:
           set -euo pipefail
           opts=(--generate-notes --verify-tag)
           [[ "$TAG" == *-* ]] && opts+=(--prerelease)
-          gh release create "$TAG" "${opts[@]}"
+          gh release create "$TAG" "${opts[@]}" sbom.cdx.json

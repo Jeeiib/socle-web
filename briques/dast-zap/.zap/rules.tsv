@@ -1,0 +1,14 @@
+# .zap/rules.tsv : décision pour chaque règle ZAP (séparateur = TABULATION).
+# Format : ID<TAB>ACTION<TAB>justification. ACTION = IGNORE | INFO | WARN | FAIL.
+# Règle absente = WARN. Chaque IGNORE doit être justifié (docs/securite.md, « Registre des exceptions »).
+10038	FAIL	CSP absente : toute régression bloque
+10055	WARN	CSP présente mais faible (wildcard, unsafe-inline) : à examiner
+10020	FAIL	Anti-clickjacking (X-Frame-Options ou frame-ancestors) : régression bloquante
+10021	FAIL	X-Content-Type-Options absent : régression bloquante
+10063	FAIL	Permissions-Policy absent : régression bloquante
+10036	FAIL	Version du serveur dans l'en-tête Server : régression bloquante
+10037	FAIL	X-Powered-By présent : régression bloquante
+90004	WARN	Isolation Spectre (COOP/COEP/CORP) : surveillé sans bloquer
+10049	IGNORE	Contenu cacheable : informatif, les assets Next.js à hash sont cachés longtemps volontairement
+10109	IGNORE	Application web moderne : informatif, signale seulement une application JavaScript
+10027	IGNORE	Commentaires suspects : mots courants dans le bundle minifié, à revérifier si le bundle change

@@ -1,0 +1,4 @@
+# Serveur à préparer, avec un administrateur qui a sudo (ou -K), pas l'utilisateur de déploiement.
+# Pour un essai sur son poste : ansible_connection=local à la place de ansible_host.
+[prod]
+serveur ansible_host=203.0.113.10 ansible_user=admin

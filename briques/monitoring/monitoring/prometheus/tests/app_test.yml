@@ -1,0 +1,149 @@
+# Tests des règles d'alerte : promtool test rules prometheus/tests/app_test.yml
+rule_files:
+  - ../rules/app.yml
+
+evaluation_interval: 15s
+
+tests:
+  - name: ServiceInjoignable se déclenche après 2 minutes d'échec de la sonde
+    interval: 15s
+    input_series:
+      # ok pendant 1 min, puis en échec
+      - series: 'probe_success{job="sonde-sante", instance="https://exemple.fr/api/health"}'
+        values: "1 1 1 1 0x30"
+    alert_rule_test:
+      - eval_time: 2m # échec depuis 1 min : en attente (for: 2m)
+        alertname: ServiceInjoignable
+        exp_alerts: []
+      - eval_time: 4m # échec depuis 3 min : déclenchée
+        alertname: ServiceInjoignable
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              job: sonde-sante
+              instance: https://exemple.fr/api/health
+            exp_annotations:
+              summary: "Service injoignable : https://exemple.fr/api/health"
+              description: "La sonde échoue depuis plus de 2 minutes (code HTTP, corps ou délai)."
+              runbook_url: "docs/INCIDENTS.md#serviceinjoignable"
+
+  - name: ServiceInjoignable reste muette sur une panne brève
+    interval: 15s
+    input_series:
+      # une minute d'échec puis retour à la normale
+      - series: 'probe_success{job="sonde-sante", instance="https://exemple.fr/api/health"}'
+        values: "1 1 0 0 0 0 1x30"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: ServiceInjoignable
+        exp_alerts: []
+
+  - name: TauxErreurs5xxEleve se déclenche au-dessus de 5 % de 5xx
+    interval: 15s
+    input_series:
+      - series: 'http_requests_total{job="app", method="GET", route="/api/items", status_code="200"}'
+        values: "0+90x60"
+      - series: 'http_requests_total{job="app", method="POST", route="/api/items", status_code="500"}'
+        values: "0+10x60"
+    promql_expr_test:
+      - expr: app:http_errors:ratio5m
+        eval_time: 12m
+        exp_samples:
+          - labels: "app:http_errors:ratio5m{}"
+            value: 0.1
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: TauxErreurs5xxEleve
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+            exp_annotations:
+              summary: "Taux d'erreurs 5xx élevé"
+              description: "10% des requêtes échouent depuis 5 minutes (seuil : 5 %)."
+              runbook_url: "docs/INCIDENTS.md#tauxerreurs5xxeleve"
+
+  - name: TauxErreurs5xxEleve reste muette à 3 % de 5xx et sur des 404
+    interval: 15s
+    input_series:
+      - series: 'http_requests_total{job="app", method="GET", route="/api/items", status_code="200"}'
+        values: "0+87x60"
+      - series: 'http_requests_total{job="app", method="POST", route="/api/items", status_code="500"}'
+        values: "0+3x60"
+      # les 404 (route non_trouvee côté Express) ne sont pas des erreurs serveur
+      - series: 'http_requests_total{job="app", method="GET", route="non_trouvee", status_code="404"}'
+        values: "0+50x60"
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: TauxErreurs5xxEleve
+        exp_alerts: []
+
+  - name: LatenceP95Elevee se déclenche quand le p95 dépasse 500 ms
+    interval: 15s
+    input_series:
+      # moitié des requêtes sous 0,5 s, le reste sous 1 s : p95 = 0,95 s
+      # (le label status_code de la variante Express est agrégé par sum by (le))
+      - series: 'http_request_duration_seconds_bucket{job="app", method="GET", route="/api/items", status_code="200", le="0.5"}'
+        values: "0+50x100"
+      - series: 'http_request_duration_seconds_bucket{job="app", method="GET", route="/api/items", status_code="200", le="1"}'
+        values: "0+100x100"
+      - series: 'http_request_duration_seconds_bucket{job="app", method="GET", route="/api/items", status_code="200", le="+Inf"}'
+        values: "0+100x100"
+    alert_rule_test:
+      - eval_time: 8m # dépassement depuis moins de 10 min : en attente
+        alertname: LatenceP95Elevee
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: LatenceP95Elevee
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+            exp_annotations:
+              summary: "Latence p95 élevée"
+              description: "p95 = 950ms depuis 10 minutes (objectif : moins de 500 ms)."
+              runbook_url: "docs/INCIDENTS.md#latencep95elevee"
+
+  - name: LatenceP95Elevee reste muette sous 500 ms
+    interval: 15s
+    input_series:
+      - series: 'http_request_duration_seconds_bucket{job="app", method="GET", route="/api/items", le="0.5"}'
+        values: "0+100x100"
+      - series: 'http_request_duration_seconds_bucket{job="app", method="GET", route="/api/items", le="1"}'
+        values: "0+100x100"
+      - series: 'http_request_duration_seconds_bucket{job="app", method="GET", route="/api/items", le="+Inf"}'
+        values: "0+100x100"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: LatenceP95Elevee
+        exp_alerts: []
+
+  - name: CertificatExpireBientot se déclenche sous 14 jours
+    interval: 5m
+    input_series:
+      # expiration à 10 jours après l'origine des temps (valeur = date d'expiration en secondes)
+      - series: 'probe_ssl_earliest_cert_expiry{job="sonde-sante", instance="https://exemple.fr/api/health"}'
+        values: "864000x100"
+    alert_rule_test:
+      - eval_time: 30m # en attente (for: 1h)
+        alertname: CertificatExpireBientot
+        exp_alerts: []
+      - eval_time: 2h
+        alertname: CertificatExpireBientot
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              job: sonde-sante
+              instance: https://exemple.fr/api/health
+            exp_annotations:
+              summary: "Certificat bientôt expiré : https://exemple.fr/api/health"
+              description: "Le certificat expire dans 9d 22h 0m 0s (seuil : 14 jours)."
+              runbook_url: "docs/INCIDENTS.md#certificatexpirebientot"
+
+  - name: CertificatExpireBientot reste muette à 20 jours
+    interval: 5m
+    input_series:
+      - series: 'probe_ssl_earliest_cert_expiry{job="sonde-sante", instance="https://exemple.fr/api/health"}'
+        values: "1728000x100"
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: CertificatExpireBientot
+        exp_alerts: []

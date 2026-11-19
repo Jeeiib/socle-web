@@ -1,0 +1,17 @@
+# L'adresse ntfy (avec le sujet) et le jeton sont lus dans des fichiers du serveur, jamais dans Git.
+route:
+  receiver: telephone
+  group_by: [alertname]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+receivers:
+  - name: telephone
+    webhook_configs:
+      # Contenu du fichier : https://<serveur ntfy>/<sujet>?template=alertmanager
+      - url_file: /etc/alertmanager/secrets/ntfy-url
+        send_resolved: true
+        # jeton: http_config:
+        # jeton:   authorization:
+        # jeton:     credentials_file: /etc/alertmanager/secrets/ntfy-jeton
