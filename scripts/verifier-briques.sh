@@ -79,7 +79,7 @@ for b in $selection; do
     [ -z "$e" ] && continue
     cp "$e" "$(dirname "$e")/.env"
   done <<EOT
-$(find "$copie" -name '.env.example')
+$(find "$copie" -name '.env*example')
 EOT
   while IFS= read -r c; do
     [ -z "$c" ] && continue
@@ -93,6 +93,52 @@ EOT
 $(find "$copie" -name 'compose*.yaml' | sort)
 EOT
 done
+
+# --- deploiement-serveur : test du validateur de tag, puis déploiement de bout en bout
+# (image du socle, Nginx TLS, smoke test, rollback automatique) sur des ports non privilégiés.
+verifier_deploiement_serveur() {
+  local brique="briques/deploiement-serveur"
+  bash "$brique/deploy/test-valider-tag.sh" || return 1
+
+  local srv="$tmp/serveur-deploiement"
+  (
+    export COMPOSE_PROJECT_NAME=socle-verif HTTP_PORT=18080 HTTPS_PORT=18443 BASE_URL=https://localhost:18443
+    # shellcheck disable=SC2329 # appelée par le trap
+    nettoyer() {
+      (cd "$srv" 2>/dev/null && docker compose down -v --remove-orphans >/dev/null 2>&1) || true
+      docker rmi -f socle-verif:0.0.0-test socle-verif:0.0.1-test >/dev/null 2>&1 || true
+    }
+    trap nettoyer EXIT
+
+    mkdir -p "$srv"
+    cp -R "$brique/compose.prod.yaml" "$brique/deploy" "$srv/"
+    sed -e 's#^IMAGE=.*#IMAGE=socle-verif#' "$brique/.env.prod.example" > "$srv/.env"
+
+    docker build -q --build-arg APP_VERSION=0.0.0-test -t socle-verif:0.0.0-test . >/dev/null || exit 1
+    # Même image sous un second tag : sa version (0.0.0-test) ne correspond pas au tag, le smoke test doit échouer.
+    docker tag socle-verif:0.0.0-test socle-verif:0.0.1-test
+    (cd "$srv" && CERT_DIR=certs bash deploy/gen-cert.sh >/dev/null) || exit 1
+
+    echo "-- déploiement nominal"
+    (cd "$srv" && ./deploy/deploy.sh v0.0.0-test) || exit 1
+    [ "$(cat "$srv/.deployed_tag")" = v0.0.0-test ] || { echo ".deployed_tag attendu : v0.0.0-test"; exit 1; }
+    echo "-- relance du même tag (idempotence)"
+    (cd "$srv" && ./deploy/deploy.sh v0.0.0-test) || exit 1
+
+    echo "-- déploiement en échec : retour automatique attendu"
+    if (cd "$srv" && SMOKE_RETRIES=3 SMOKE_DELAY=1 ./deploy/deploy.sh v0.0.1-test); then
+      echo "Le déploiement d'une version erronée aurait dû échouer"
+      exit 1
+    fi
+    [ "$(cat "$srv/.deployed_tag")" = v0.0.0-test ] || { echo "rollback : .deployed_tag attendu v0.0.0-test"; exit 1; }
+    "$brique/deploy/smoke-test.sh" 0.0.0-test >/dev/null || { echo "rollback : service non rétabli"; exit 1; }
+    echo "-- tag invalide refusé"
+    if (cd "$srv" && ./deploy/deploy.sh '1.2.3' >/dev/null 2>&1); then
+      echo "Un tag invalide aurait dû être refusé"
+      exit 1
+    fi
+  )
+}
 
 # --- contrôles propres à chaque brique
 for b in $selection; do
