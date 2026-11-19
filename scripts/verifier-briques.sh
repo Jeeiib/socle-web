@@ -69,21 +69,29 @@ if [ -n "$workflows" ]; then
   fi
 fi
 
-# --- docker compose config : copie de la brique avec un .env factice si .env.example existe
+# --- docker compose config : copie de la brique, .env factice à côté de chaque .env.example,
+# commande lancée dans le dossier de chaque compose*.yaml (les chemins relatifs y résolvent).
 for b in $selection; do
   copie="$tmp/$b"
   mkdir -p "$copie"
   cp -R "briques/$b/." "$copie/"
-  [ -f "$copie/.env.example" ] && cp "$copie/.env.example" "$copie/.env"
-  for c in "briques/$b"/compose*.yaml; do
-    [ -f "$c" ] || continue
-    rel="$(basename "$c")"
-    if docker run --rm -v "$copie:/brique:ro" -w /brique "$IMAGE_COMPOSE" compose -f "$rel" config -q; then
+  while IFS= read -r e; do
+    [ -z "$e" ] && continue
+    cp "$e" "$(dirname "$e")/.env"
+  done <<EOT
+$(find "$copie" -name '.env.example')
+EOT
+  while IFS= read -r c; do
+    [ -z "$c" ] && continue
+    rel="${c#"$copie"/}"
+    if docker run --rm -v "$(dirname "$c"):/brique:ro" -w /brique "$IMAGE_COMPOSE" compose -f "$(basename "$c")" config -q; then
       reussi "compose $b/$rel"
     else
       echec "compose $b/$rel"
     fi
-  done
+  done <<EOT
+$(find "$copie" -name 'compose*.yaml' | sort)
+EOT
 done
 
 # --- contrôles propres à chaque brique

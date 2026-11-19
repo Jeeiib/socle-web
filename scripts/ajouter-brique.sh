@@ -12,7 +12,7 @@ nom="$1"
 projet="${2:-.}"
 
 case "$nom" in
-  ''|*[!a-z0-9-]*) echo "Nom de brique invalide : $nom" >&2; exit 1 ;;
+  ''|-*|*[!a-z0-9-]*) echo "Nom de brique invalide : $nom" >&2; exit 1 ;;
 esac
 if [ ! -d "$projet" ]; then
   echo "Dossier projet introuvable : $projet" >&2
@@ -52,7 +52,7 @@ entete() {
 }
 
 registre="$projet/.socle/briques"
-if [ -f "$registre" ] && grep -qx "$nom" "$registre"; then
+if [ -f "$registre" ] && grep -qx -- "$nom" "$registre"; then
   echo "Brique $nom déjà présente."
   exit 0
 fi
@@ -60,7 +60,7 @@ fi
 # 1. Prérequis
 manquants=""
 for p in $(entete prerequis); do
-  if ! { [ -f "$registre" ] && grep -qx "$p" "$registre"; }; then
+  if ! { [ -f "$registre" ] && grep -qx -- "$p" "$registre"; }; then
     manquants="$manquants $p"
   fi
 done
