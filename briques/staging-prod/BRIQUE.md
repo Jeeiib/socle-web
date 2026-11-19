@@ -72,7 +72,7 @@ Aucun check requis.
 ## Pièges connus
 
 - Pour un push de tag, `workflow_run` s'exécute sur la branche par défaut : la restriction « branches et tags » de l'environnement voit `main`, pas le tag. Gardez `main` dans la liste.
-- Le Nginx redirige `http` vers `https` sans conserver le port : sur 8080, la redirection mène vers 443 (la production). Utiliser l'adresse HTTPS directement, ou mettre le staging derrière son propre sous-domaine.
+- Le Nginx redirige `http` vers `https` sans conserver le port : sur 8080, la redirection mène vers 443 (la production). Sur le même hôte, ouvrir directement `https://<hôte>:8443` ; un sous-domaine seul n'y change rien, il pointe vers la même machine et la même redirection.
 - Variables et secrets sont propres à chaque environnement : `DEPLOY_USER`, la clé et `known_hosts` doivent être posés sur `staging` ET `production`.
 - Une production lancée à la main saute le staging : à réserver au retour arrière.
 - Le staging et la production partagent un serveur : un staging gourmand ralentit la production. Surveiller la mémoire.

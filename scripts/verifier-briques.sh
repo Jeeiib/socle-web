@@ -199,6 +199,11 @@ verifier_sauvegardes() {
     ./deploy/backup.sh >/dev/null || exit 1
     [ ! -e "$ancien" ] || { echo "rotation : $ancien conservé"; exit 1; }
 
+    echo "-- base arrêtée mais existante : le hook doit échouer (le déploiement s'arrêterait)"
+    docker compose stop db >/dev/null 2>&1 || exit 1
+    if ./deploy/avant-deploiement.d/10-sauvegarde.sh >/dev/null 2>&1; then echo "le hook aurait dû échouer sur une base arrêtée"; exit 1; fi
+    docker compose up -d --wait --wait-timeout 60 >/dev/null 2>&1 || exit 1
+
     echo "-- dump vide refusé (pg_dump simulé sans sortie)"
     mkdir -p "$srv/faux"
     cat > "$srv/faux/docker" <<EOS

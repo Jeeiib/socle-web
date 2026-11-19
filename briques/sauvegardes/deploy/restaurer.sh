@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Restaure un dump dans la base : ./deploy/restaurer.sh [--oui] backups/<fichier>.sql.gz
-# Écrase les données actuelles (le dump contient DROP ... IF EXISTS). Confirmation demandée sauf avec --oui.
+# Écrase les données actuelles (le dump contient DROP ... IF EXISTS) : faire d'abord ./deploy/backup.sh,
+# arrêter l'application pendant la restauration. Confirmation demandée sauf avec --oui.
 set -euo pipefail
 
 oui=0
@@ -8,7 +9,10 @@ fichier=""
 for arg in "$@"; do
   case "$arg" in
     --oui) oui=1 ;;
-    *) fichier="$arg" ;;
+    *)
+      [ -z "$fichier" ] || { echo "Un seul fichier à la fois" >&2; exit 1; }
+      fichier="$arg"
+      ;;
   esac
 done
 [ -n "$fichier" ] || { echo "Usage : ./deploy/restaurer.sh [--oui] <fichier.sql.gz>" >&2; exit 1; }

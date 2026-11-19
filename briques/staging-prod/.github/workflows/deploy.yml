@@ -44,6 +44,10 @@ jobs:
           TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.workflow_run.head_branch }}
           SHA: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.workflow_run.head_sha }}
         run: |
+          set -euo pipefail
+          # Format strict avant d'écrire dans GITHUB_OUTPUT (un saut de ligne y injecterait des sorties).
+          printf '%s' "$TAG" | grep -Eqx 'v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?' || { echo "Tag invalide" >&2; exit 1; }
+          printf '%s' "$SHA" | grep -Eqx '[0-9a-f]{40}' || { echo "SHA invalide" >&2; exit 1; }
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
 
@@ -113,7 +117,7 @@ jobs:
   production:
     name: production
     # Le staging doit avoir réussi ; il est ignoré (skipped) pour une production lancée à la main.
-    if: ${{ !cancelled() && needs.cadrer.result == 'success' && needs.staging.result != 'failure' && (github.event_name == 'workflow_run' || inputs.environnement == 'production') }}
+    if: ${{ !cancelled() && needs.cadrer.result == 'success' && (needs.staging.result == 'success' || (needs.staging.result == 'skipped' && github.event_name == 'workflow_dispatch')) && (github.event_name == 'workflow_run' || inputs.environnement == 'production') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     environment: production
