@@ -1,0 +1,174 @@
+# Déploiement en deux temps : staging (avec smoke test), puis production après approbation.
+# Remplace le workflow de la brique deploiement-serveur. Le nom « Déploiement » est lu par la brique dast-zap.
+name: Déploiement
+
+on:
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag à déployer (vX.Y.Z), aussi pour un retour arrière manuel"
+        required: true
+        type: string
+      environnement:
+        description: "Environnement visé : staging seul, ou production (sans repasser par staging)"
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+
+permissions: {}
+
+concurrency:
+  group: deploiement
+  cancel-in-progress: false
+
+jobs:
+  # Fixe le tag et le commit une seule fois ; les valeurs d'événement ne passent jamais dans un run:.
+  cadrer:
+    name: cadrer
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    outputs:
+      tag: ${{ steps.valeurs.outputs.tag }}
+      sha: ${{ steps.valeurs.outputs.sha }}
+    steps:
+      - id: valeurs
+        env:
+          # Pour un push de tag, head_branch du workflow_run contient le nom du tag.
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.workflow_run.head_branch }}
+          SHA: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.workflow_run.head_sha }}
+        run: |
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+  staging:
+    name: staging
+    if: github.event_name == 'workflow_run' || inputs.environnement == 'staging'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: staging
+    needs: cadrer
+    permissions:
+      contents: read
+      packages: read
+    env:
+      TAG: ${{ needs.cadrer.outputs.tag }}
+      DEPLOY_HOST: ${{ vars.STAGING_HOST }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+      DEPLOY_DIR: ${{ vars.STAGING_DIR }}
+      GHCR_ACTOR: ${{ github.actor }}
+      BASE_URL: ${{ vars.STAGING_BASE_URL || 'https://localhost:8443' }}
+    steps:
+      # Le dépôt fournit valider-tag.sh et les fichiers à copier ; aucun secret n'est encore chargé.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.cadrer.outputs.sha }}
+          persist-credentials: false
+
+      - name: Valider le tag
+        run: ./deploy/valider-tag.sh "$TAG"
+
+      - name: Préparer SSH
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          eval "$(ssh-agent -s)"
+          printf '%s\n' "$SSH_KEY" | ssh-add -
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
+          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> "$GITHUB_ENV"
+
+      - name: Copier les fichiers de déploiement
+        run: |
+          set -euo pipefail
+          scp -r compose*.yaml deploy "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_DIR/"
+
+      - name: Se connecter à ghcr.io depuis le serveur
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2029 # valeurs de variables de dépôt, développées côté client voulu
+          printf '%s' "$GHCR_TOKEN" | ssh "$DEPLOY_USER@$DEPLOY_HOST" "docker login ghcr.io -u '$GHCR_ACTOR' --password-stdin"
+
+      - name: Déployer
+        run: |
+          # shellcheck disable=SC2029 # TAG validé plus haut, DEPLOY_DIR et BASE_URL sont des variables de dépôt
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" "cd '$DEPLOY_DIR' && BASE_URL='$BASE_URL' ./deploy/deploy.sh '$TAG'"
+
+      - name: Déconnecter ghcr.io
+        if: always()
+        run: ssh "$DEPLOY_USER@$DEPLOY_HOST" "docker logout ghcr.io" || true
+
+  production:
+    name: production
+    # Le staging doit avoir réussi ; il est ignoré (skipped) pour une production lancée à la main.
+    if: ${{ !cancelled() && needs.cadrer.result == 'success' && needs.staging.result != 'failure' && (github.event_name == 'workflow_run' || inputs.environnement == 'production') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: production
+    needs: [cadrer, staging]
+    permissions:
+      contents: read
+      packages: read
+    env:
+      TAG: ${{ needs.cadrer.outputs.tag }}
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+      DEPLOY_DIR: ${{ vars.DEPLOY_DIR }}
+      GHCR_ACTOR: ${{ github.actor }}
+    steps:
+      # Le dépôt fournit valider-tag.sh et les fichiers à copier ; aucun secret n'est encore chargé.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.cadrer.outputs.sha }}
+          persist-credentials: false
+
+      - name: Valider le tag
+        run: ./deploy/valider-tag.sh "$TAG"
+
+      - name: Préparer SSH
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          eval "$(ssh-agent -s)"
+          printf '%s\n' "$SSH_KEY" | ssh-add -
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
+          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> "$GITHUB_ENV"
+
+      - name: Copier les fichiers de déploiement
+        run: |
+          set -euo pipefail
+          scp -r compose*.yaml deploy "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_DIR/"
+
+      - name: Se connecter à ghcr.io depuis le serveur
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC2029 # valeurs de variables de dépôt, développées côté client voulu
+          printf '%s' "$GHCR_TOKEN" | ssh "$DEPLOY_USER@$DEPLOY_HOST" "docker login ghcr.io -u '$GHCR_ACTOR' --password-stdin"
+
+      - name: Déployer
+        run: |
+          # shellcheck disable=SC2029 # TAG validé plus haut, DEPLOY_DIR est une variable de dépôt
+          ssh "$DEPLOY_USER@$DEPLOY_HOST" "cd '$DEPLOY_DIR' && ./deploy/deploy.sh '$TAG'"
+
+      - name: Déconnecter ghcr.io
+        if: always()
+        run: ssh "$DEPLOY_USER@$DEPLOY_HOST" "docker logout ghcr.io" || true

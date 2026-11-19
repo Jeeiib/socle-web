@@ -157,6 +157,62 @@ verifier_deploiement_serveur() {
   )
 }
 
+# --- sauvegardes : Postgres réel, sauvegarde, suppression d'une table, restauration, rotation, dump vide refusé.
+verifier_sauvegardes() {
+  local brique="briques/sauvegardes"
+  local srv="$tmp/serveur-sauvegardes"
+  (
+    # shellcheck disable=SC2329 # appelée par le trap
+    nettoyer() { (cd "$srv" 2>/dev/null && docker compose down -v --remove-orphans >/dev/null 2>&1) || true; }
+    trap nettoyer EXIT
+
+    mkdir -p "$srv"
+    cp -R "$brique/compose.postgres.yaml" "$brique/deploy" "$srv/"
+    printf 'COMPOSE_PROJECT_NAME=socle-verif-sauv\nCOMPOSE_FILE=compose.postgres.yaml\nPOSTGRES_USER=app\nPOSTGRES_DB=appdb\nPOSTGRES_PASSWORD=verif-seulement\n' > "$srv/.env"
+    cd "$srv"
+    sql() { docker compose exec -T db psql -qtA -U app -d appdb -c "$1"; }
+
+    echo "-- hook sans base démarrée : ignoré sans erreur"
+    ./deploy/avant-deploiement.d/10-sauvegarde.sh || exit 1
+
+    docker compose up -d --wait --wait-timeout 60 || exit 1
+    sql "CREATE TABLE note (id int, texte text); INSERT INTO note VALUES (1, 'avant-sauvegarde');" >/dev/null
+
+    echo "-- sauvegarde par le hook"
+    ./deploy/avant-deploiement.d/10-sauvegarde.sh || exit 1
+    dump="$(find backups -name 'appdb-*.sql.gz' | head -n 1)"
+    [ -n "$dump" ] || { echo "aucune sauvegarde produite"; exit 1; }
+    [ -n "$(find "$dump" -perm 600)" ] || { echo "$dump doit être en 600"; exit 1; }
+
+    echo "-- restauration après suppression de la table"
+    sql "DROP TABLE note;" >/dev/null
+    ./deploy/restaurer.sh --oui "$dump" || exit 1
+    [ "$(sql "SELECT texte FROM note WHERE id = 1;")" = avant-sauvegarde ] || { echo "ligne non restaurée"; exit 1; }
+
+    echo "-- restauration sans --oui : refusée sur une réponse autre que oui"
+    if echo non | ./deploy/restaurer.sh "$dump" >/dev/null 2>&1; then echo "restauration sans confirmation"; exit 1; fi
+
+    echo "-- rotation : une sauvegarde de plus de 7 jours disparaît"
+    ancien=backups/appdb-19990101-000000.sql.gz
+    cp "$dump" "$ancien"
+    touch -t 199901010000 "$ancien"
+    ./deploy/backup.sh >/dev/null || exit 1
+    [ ! -e "$ancien" ] || { echo "rotation : $ancien conservé"; exit 1; }
+
+    echo "-- dump vide refusé (pg_dump simulé sans sortie)"
+    mkdir -p "$srv/faux"
+    cat > "$srv/faux/docker" <<EOS
+#!/usr/bin/env bash
+case "\$*" in *pg_dump*) exit 0 ;; esac
+exec "$(command -v docker)" "\$@"
+EOS
+    chmod +x "$srv/faux/docker"
+    avant="$(find backups -name 'appdb-*.sql.gz' | wc -l)"
+    if PATH="$srv/faux:$PATH" ./deploy/backup.sh >/dev/null 2>&1; then echo "un dump vide aurait dû être refusé"; exit 1; fi
+    [ "$(find backups -name 'appdb-*.sql.gz*' | wc -l)" = "$avant" ] || { echo "fichier laissé par un dump vide"; exit 1; }
+  )
+}
+
 # --- contrôles propres à chaque brique
 for b in $selection; do
   fonction="verifier_$(echo "$b" | tr '-' '_')"
