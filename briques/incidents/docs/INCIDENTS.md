@@ -8,13 +8,13 @@ alerte -> incident (diagnostic, correction) -> post-mortem sans blâme -> issue 
 
 ## Supervision en place
 
-| Outil        | Adresse                 | Sert à                                                      |
-| ------------ | ----------------------- | ----------------------------------------------------------- |
-| Prometheus   | https://exemple.fr:9090 | alertes (_Alerts_), cibles (_Targets_), requêtes PromQL     |
-| Alertmanager | https://exemple.fr:9093 | alertes actives ; poser un silence pendant une intervention |
-| Grafana      | https://exemple.fr:3000 | tableau de bord RED et disponibilité                        |
+| Outil        | Adresse               | Sert à                                                      |
+| ------------ | --------------------- | ----------------------------------------------------------- |
+| Prometheus   | http://localhost:9090 | alertes (_Alerts_), cibles (_Targets_), requêtes PromQL     |
+| Alertmanager | http://localhost:9093 | alertes actives ; poser un silence pendant une intervention |
+| Grafana      | http://localhost:3001 | tableau de bord RED et disponibilité                        |
 
-À remplacer par les adresses réelles du projet.
+Ces adresses ne sont joignables que par tunnel SSH (`ssh -L 3001:127.0.0.1:3001 -L 9090:127.0.0.1:9090 -L 9093:127.0.0.1:9093 deploy@exemple.fr`), voir la fiche de la brique `monitoring`.
 
 ## Méthode de diagnostic
 
@@ -39,7 +39,7 @@ Pendant une intervention longue, un silence dans Alertmanager (avec commentaire 
 
 ### ServiceInjoignable
 
-**Gravité** : critique. La sonde ne reçoit plus de réponse saine du service depuis 1 minute.
+**Gravité** : critique. La sonde ne reçoit plus de réponse saine du service depuis 2 minutes.
 
 1. `docker compose ps` : l'application tourne-t-elle, redémarre-t-elle en boucle ?
 2. Journaux filtrés sur `level=fatal` et `level=error` : une configuration manquante ou une base injoignable apparaît ici.
@@ -48,7 +48,7 @@ Pendant une intervention longue, un silence dans Alertmanager (avec commentaire 
 
 ### TauxErreurs5xxEleve
 
-**Gravité** : avertissement. Plus de 5 % de réponses 5xx pendant 5 minutes.
+**Gravité** : critique. Plus de 5 % de réponses 5xx pendant 5 minutes.
 
 1. Tableau de bord : les erreurs touchent-elles toutes les routes ou une seule ? Coïncident-elles avec un déploiement ?
 2. Journaux `level=error` : message et route les plus fréquents.
@@ -57,7 +57,7 @@ Pendant une intervention longue, un silence dans Alertmanager (avec commentaire 
 
 ### LatenceP95Elevee
 
-**Gravité** : avertissement. Le p95 dépasse le seuil pendant 5 minutes.
+**Gravité** : avertissement. Le p95 dépasse 500 ms pendant 10 minutes.
 
 1. Panneau Duration par route : une route ou toutes ?
 2. Ressources du serveur (USE) : CPU saturé, mémoire qui swape, disque lent.

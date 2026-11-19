@@ -106,10 +106,18 @@ Chacune porte `summary`, `description` et `runbook_url` vers `docs/INCIDENTS.md`
 - Test de bout en bout sur le serveur : l'alerte doit arriver sur le téléphone, puis sa résolution.
 
   ```bash
-  docker compose -f compose.monitoring.yaml exec alertmanager amtool alert add AlerteDeTest severity=warning --annotation=summary="Test ntfy" --alertmanager.url=http://localhost:9093
+  docker compose -f compose.monitoring.yaml exec alertmanager amtool alert add AlerteDeTest severity=warning --annotation='summary="Test ntfy"' --alertmanager.url=http://localhost:9093
   ```
 
-  La résolution arrive quand l'alerte expire (quelques minutes, `--end` possible) ; l'inscription du test est visible dans Alertmanager.
+  Les valeurs sont entre guillemets doubles à l'intérieur de guillemets simples, sinon `amtool` affiche un avertissement sur son analyseur de filtres. Le message arrive après `group_wait` (30 s). Pour voir la résolution, renvoyer la même alerte avec `--end` : mêmes étiquettes et mêmes annotations, sinon c'est une autre alerte.
+
+  ```bash
+  docker compose -f compose.monitoring.yaml exec alertmanager amtool alert add AlerteDeTest severity=warning --annotation='summary="Test ntfy"' --end="$(date -u +%Y-%m-%dT%H:%M:%SZ)" --alertmanager.url=http://localhost:9093
+  ```
+
+  La notification « résolue » arrive après `group_interval` (5 min).
+
+- `runbook_url` est relatif (`docs/INCIDENTS.md#...`) : il n'est pas cliquable depuis le téléphone. Le remplacer dans `rules/app.yml` (et `app_test.yml`) par l'URL complète du dépôt, par exemple `https://github.com/<organisation>/<depot>/blob/main/docs/INCIDENTS.md#serviceinjoignable`.
 
 ## Pièges connus
 
