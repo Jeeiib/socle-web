@@ -1,0 +1,61 @@
+# Règles RED. Les noms d'alerte sont repris par docs/INCIDENTS.md (brique incidents).
+groups:
+  - name: app.recording
+    rules:
+      - record: app:http_requests:rate5m
+        expr: sum(rate(http_requests_total{job="app"}[5m]))
+
+      - record: app:http_errors:ratio5m
+        expr: |
+          sum(rate(http_requests_total{job="app", status_code=~"5.."}[5m]))
+          /
+          sum(rate(http_requests_total{job="app"}[5m]))
+
+      # sum by (le) : la variante Express ajoute status_code à l'histogramme, la variante Next non.
+      - record: app:http_request_duration_seconds:p95_5m
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(http_request_duration_seconds_bucket{job="app"}[5m])))
+
+  - name: app.alerts
+    rules:
+      - alert: ServiceInjoignable
+        expr: probe_success{job="sonde-sante"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service injoignable : {{ $labels.instance }}"
+          description: "La sonde échoue depuis plus de 2 minutes (code HTTP, corps ou délai)."
+          runbook_url: "docs/INCIDENTS.md#serviceinjoignable"
+
+      - alert: TauxErreurs5xxEleve
+        expr: app:http_errors:ratio5m > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Taux d'erreurs 5xx élevé"
+          description: "{{ $value | humanizePercentage }} des requêtes échouent depuis 5 minutes (seuil : 5 %)."
+          runbook_url: "docs/INCIDENTS.md#tauxerreurs5xxeleve"
+
+      - alert: LatenceP95Elevee
+        expr: app:http_request_duration_seconds:p95_5m > 0.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Latence p95 élevée"
+          description: "p95 = {{ $value | humanizeDuration }} depuis 10 minutes (objectif : moins de 500 ms)."
+          runbook_url: "docs/INCIDENTS.md#latencep95elevee"
+
+      # La sonde renvoie la date d'expiration (secondes Unix) : on en retranche l'heure courante.
+      - alert: CertificatExpireBientot
+        expr: (probe_ssl_earliest_cert_expiry{job="sonde-sante"} - time()) < 14 * 24 * 3600
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Certificat bientôt expiré : {{ $labels.instance }}"
+          description: "Le certificat expire dans {{ $value | humanizeDuration }} (seuil : 14 jours)."
+          runbook_url: "docs/INCIDENTS.md#certificatexpirebientot"

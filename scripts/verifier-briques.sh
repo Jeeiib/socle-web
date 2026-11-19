@@ -10,6 +10,8 @@ IMAGE_COMPOSE="docker:29.0.0-cli@sha256:87858a6dd14149240f4a2c33e0ec0f32a5ac1bb2
 IMAGE_TOFU="ghcr.io/opentofu/opentofu:1.13.9@sha256:f5aef7f2632b490e3c289a239d7974497d0583f3df6bfa35e8eb31a367ee5ec0"
 IMAGE_PYTHON="python:3.13-slim@sha256:e48f59cdba69a3cbd9ed2cf0f348d90d45a8d350d98134cf1070bc106ee9ed90"
 IMAGE_REGISTRY="registry:2@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373"
+IMAGE_PROMETHEUS="prom/prometheus:v3.15.1@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2"
+IMAGE_ALERTMANAGER="prom/alertmanager:v0.34.2@sha256:39d8bb3966c694a124428a3a88fbcffd40bd069129ecd47c059f8a3f17c55f3b"
 ANSIBLE_CORE_VERSION="2.20.11"
 
 racine="$(cd "$(dirname "$0")/.." && pwd)"
@@ -354,6 +356,39 @@ EOP
     pnpm add --ignore-workspace -D vitest@^5 supertest@^7 >/dev/null || exit 1
     pnpm exec vitest run
   )
+}
+
+# --- monitoring : promtool (config, règles, tests des règles), amtool (config avec fichiers secrets factices),
+# et garde-fou : aucun sujet ntfy ni jeton dans les fichiers de la brique (la fiche seule a des exemples génériques).
+verifier_monitoring() {
+  local m="$racine/briques/monitoring/monitoring"
+  local prom=(docker run --rm --user "$(id -u):$(id -g)" -v "$m:/m:ro" -w /m --entrypoint promtool "$IMAGE_PROMETHEUS")
+  # promtool check config exige les fichiers de règles aux chemins de prometheus.yml : /etc/prometheus.
+  docker run --rm --user "$(id -u):$(id -g)" -v "$m/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro" \
+    -v "$m/prometheus/rules:/etc/prometheus/rules:ro" --entrypoint promtool "$IMAGE_PROMETHEUS" \
+    check config /etc/prometheus/prometheus.yml || return 1
+  "${prom[@]}" check rules prometheus/rules/app.yml || return 1
+  "${prom[@]}" test rules prometheus/tests/app_test.yml || return 1
+
+  # amtool : deux fichiers secrets factices ; la variante avec jeton décommente les lignes marquées « # jeton: ».
+  local am="$tmp/alertmanager"
+  mkdir -p "$am/secrets"
+  echo "https://ntfy.exemple.invalid/sujet?template=alertmanager" > "$am/secrets/ntfy-url"
+  echo "jeton-factice" > "$am/secrets/ntfy-jeton"
+  cp "$m/alertmanager/alertmanager.yml" "$am/defaut.yml"
+  sed 's/^\( *\)# jeton: /\1/' "$m/alertmanager/alertmanager.yml" > "$am/jeton.yml"
+  local f
+  for f in defaut jeton; do
+    docker run --rm --user "$(id -u):$(id -g)" -v "$am/$f.yml:/etc/alertmanager/alertmanager.yml:ro" \
+      -v "$am/secrets:/etc/alertmanager/secrets:ro" --entrypoint amtool "$IMAGE_ALERTMANAGER" \
+      check-config /etc/alertmanager/alertmanager.yml || return 1
+  done
+  grep -q 'credentials_file' "$am/jeton.yml" || { echo "variante avec jeton : credentials_file absent"; return 1; }
+
+  if grep -rnE 'ntfy\.sh/[A-Za-z0-9_-]|tk_' briques/monitoring --exclude=BRIQUE.md; then
+    echo "sujet ntfy ou jeton trouvé dans la brique (hors fiche)"
+    return 1
+  fi
 }
 
 # --- contrôles propres à chaque brique
