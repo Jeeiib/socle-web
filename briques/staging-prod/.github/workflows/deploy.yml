@@ -43,11 +43,12 @@ jobs:
           # Pour un push de tag, head_branch du workflow_run contient le nom du tag.
           TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.workflow_run.head_branch }}
           SHA: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.workflow_run.head_sha }}
+        shell: bash
         run: |
           set -euo pipefail
           # Format strict avant d'écrire dans GITHUB_OUTPUT (un saut de ligne y injecterait des sorties).
-          printf '%s' "$TAG" | grep -Eqx 'v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?' || { echo "Tag invalide" >&2; exit 1; }
-          printf '%s' "$SHA" | grep -Eqx '[0-9a-f]{40}' || { echo "SHA invalide" >&2; exit 1; }
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo "Tag invalide" >&2; exit 1; }
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "SHA invalide" >&2; exit 1; }
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
 
