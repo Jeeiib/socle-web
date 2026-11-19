@@ -14,13 +14,13 @@ Source des briques : `$SOCLE_DIR/briques` si `SOCLE_DIR` est défini, sinon le d
 
 Tous les contrôles passent avant la première copie. Le script copie tout sauf `BRIQUE.md`, inscrit la brique dans `.socle/briques` (une ligne par brique) et affiche la rubrique `## Activation`.
 
-| Code | Sens |
-|---|---|
-| 0 | succès, ou brique déjà présente |
-| 1 | usage incorrect ou brique inconnue |
-| 2 | fichiers en conflit (déjà présents avec un autre contenu) |
-| 3 | prérequis manquant |
-| 4 | fichier de `remplace:` modifié localement |
+| Code | Sens                                                      |
+| ---- | --------------------------------------------------------- |
+| 0    | succès, ou brique déjà présente                           |
+| 1    | usage incorrect ou brique inconnue                        |
+| 2    | fichiers en conflit (déjà présents avec un autre contenu) |
+| 3    | prérequis manquant                                        |
+| 4    | fichier de `remplace:` modifié localement                 |
 
 ## Format de `BRIQUE.md`
 
