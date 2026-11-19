@@ -33,7 +33,8 @@
           { "context": "tests", "integration_id": 15368 },
           { "context": "build", "integration_id": 15368 },
           { "context": "docker", "integration_id": 15368 },
-          { "context": "actionlint", "integration_id": 15368 }
+          { "context": "actionlint", "integration_id": 15368 },
+          { "context": "briques", "integration_id": 15368 }
         ]
       }
     }

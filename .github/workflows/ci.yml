@@ -1,5 +1,5 @@
 # CI : qualité, tests, build et image Docker (shift-left : on casse tôt, sur la PR).
-# Les noms de jobs (actionlint, qualite, tests, build, docker) sont des checks
+# Les noms de jobs (actionlint, qualite, tests, build, docker, briques) sont des checks
 # requis par le ruleset de `main` : ne pas les renommer, ne pas les passer en matrice.
 name: CI
 
@@ -98,6 +98,27 @@ jobs:
             echo "|---|---|---|---|"
             jq -r '.total | to_entries[] | "| \(.key) | \(.value.covered) | \(.value.total) | \(.value.pct) |"' coverage/coverage-summary.json
           } >> "$GITHUB_STEP_SUMMARY"
+
+  briques:
+    name: briques
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Tester le script d'ajout
+        run: bash scripts/test-ajouter-brique.sh
+      - name: Vérifier les briques
+        run: bash scripts/verifier-briques.sh
 
   build:
     name: build
