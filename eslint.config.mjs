@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Dossier temporaire de scripts/verifier-briques.sh.
+    ".verif-tmp/**",
   ]),
 ]);
 

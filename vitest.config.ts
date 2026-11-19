@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 import { fileURLToPath } from "node:url";
 
 export default defineConfig({
@@ -7,6 +7,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    exclude: [...configDefaults.exclude, "briques/**", ".verif-tmp/**"],
     coverage: {
       provider: "v8",
       include: ["src/lib/**", "src/app/api/**"],
