@@ -39,7 +39,7 @@ Tout vit dans `monitoring/` :
 
 1. Dans `prometheus/prometheus.yml`, remplacer `exemple.fr` par le domaine réel (et `metrics_path` pour Express).
 2. Installer l'appli ntfy sur le téléphone (iOS, Android) et choisir un sujet long et impossible à deviner (par exemple `openssl rand -hex 16`, préfixé du nom du projet). Sur ntfy.sh, qui connaît le sujet le lit : c'est un secret.
-3. Créer les fichiers secrets sur le serveur, dans `monitoring/secrets/` :
+3. Copier `monitoring/` sur le serveur à la main (`scp -r monitoring <utilisateur>@<serveur>:<dossier de prod>/`, ou `rsync`) : le workflow `Déploiement` ne copie que `compose.prod.yaml` et `deploy/`. Puis créer les fichiers secrets sur le serveur, dans `monitoring/secrets/` :
 
    ```bash
    cd monitoring/secrets

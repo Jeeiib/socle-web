@@ -31,7 +31,7 @@ Aucune brique bloquante. Prévue pour accompagner `deploiement-serveur` (même d
 
 ## Activation
 
-1. Copier `ansible/inventory.ini.example` en `ansible/inventory.ini` et y mettre l'adresse et l'utilisateur du serveur.
+1. Copier `ansible/inventory.ini.example` en `ansible/inventory.ini` et y mettre l'adresse du serveur et un administrateur qui a `sudo` (pas `deploy`, qui n'en a pas ; sinon passer `-K` pour saisir le mot de passe sudo).
 2. Simuler : `ansible-playbook -i inventory.ini preparer-prod.yml -e image=ghcr.io/mon-organisation/mon-projet --check --diff`.
 3. Appliquer sans `--check`. Variables utiles (`-e`) : `prod_dir`, `app_user`, `app_become=false` (si la connexion se fait déjà avec le propriétaire du dossier), `compose_file` (`compose.prod.yaml:compose.postgres.yaml` avec la brique `sauvegardes`), `password_file`.
 4. Poser le certificat (`deploy/gen-cert.sh` ou Let's Encrypt) puis déployer comme décrit dans `deploiement-serveur`.

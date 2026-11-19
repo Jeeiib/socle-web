@@ -49,7 +49,9 @@
       ansible.builtin.template:
         src: env.j2
         dest: "{{ prod_dir }}/.env"
+        owner: "{{ app_user or omit }}"
         mode: "0600"
+      become: "{{ app_become | bool }}"
       diff: false # --diff afficherait le mot de passe
       no_log: true
       notify: Relancer la stack
@@ -62,6 +64,7 @@
       register: services_en_marche
       changed_when: false
       failed_when: false # la stack n'est pas forcément lancée, ni Docker installé
+      become: "{{ app_become | bool }}"
       listen: Relancer la stack
 
     # Un .env modifié n'est relu qu'à la recréation des conteneurs ; la version en place vient de .deployed_tag.
@@ -74,6 +77,7 @@
           IMAGE_TAG="${tag#v}" docker compose up -d --wait --wait-timeout 120
         executable: /bin/bash
         chdir: "{{ prod_dir }}"
+      become: "{{ app_become | bool }}"
       when:
         - services_en_marche.stdout_lines | default([]) | length > 0
       changed_when: true

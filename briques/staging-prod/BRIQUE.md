@@ -78,4 +78,4 @@ Aucun check requis.
 - Une production lancée à la main saute le staging : à réserver au retour arrière.
 - Le staging et la production partagent un serveur : un staging gourmand ralentit la production. Surveiller la mémoire.
 - Si le staging échoue, la production ne démarre pas (job ignoré) ; relancer le workflow après correction.
-- Avec `iac-opentofu`, l'IaC recrée l'environnement de staging : supprimer `compose.staging.yaml` à la main.
+- `staging-prod` et `iac-opentofu` sont des alternatives : les deux gèrent le même staging, en choisir une seule.

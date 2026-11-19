@@ -137,5 +137,4 @@ jobs:
           set -euo pipefail
           opts=(--generate-notes --verify-tag)
           [[ "$TAG" == *-* ]] && opts+=(--prerelease)
-          gh release create "$TAG" "${opts[@]}"
-          gh release upload "$TAG" sbom.cdx.json
+          gh release create "$TAG" "${opts[@]}" sbom.cdx.json

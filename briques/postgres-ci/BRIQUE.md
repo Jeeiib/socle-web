@@ -30,7 +30,7 @@ Aucune autre brique. Le projet doit avoir un script `pnpm test:integration` et l
 ## Activation
 
 1. Ajouter le script au `package.json` : `"test:integration": "vitest run --config vitest.integration.config.ts"` (adapter la commande à l'outil de test du projet). Les tests d'intégration lisent `process.env.DATABASE_URL`.
-2. Ajouter `integration` aux checks requis du ruleset : l'inscrire dans `.github/rulesets/main.json` (liste `required_status_checks`), puis `scripts/appliquer-ruleset.sh`.
+2. Ajouter `integration` aux checks requis du ruleset : l'inscrire dans `.github/rulesets/main.json` (liste `required_status_checks`), puis `scripts/appliquer-ruleset.sh`. L'entrée à ajouter : `{ "context": "integration", "integration_id": 15368 }`.
 3. Si les migrations doivent passer avant les tests, ajouter une étape `pnpm db:migrate` (ou l'équivalent) avant `pnpm test:integration`.
 
 ## Vérification
@@ -44,4 +44,4 @@ Aucune autre brique. Le projet doit avoir un script `pnpm test:integration` et l
 - Un check requis dont le script est absent échoue : ajouter `test:integration` avant d'inscrire `integration` au ruleset.
 - Ne pas ajouter `paths-ignore` à ce workflow : une PR de documentation resterait bloquée en attente du check.
 - Le service démarre en quelques secondes ; sans le healthcheck, le premier test peut tomber sur une base pas encore prête.
-- Le digest de l'image Postgres est mis à jour par Dependabot (écosystème `docker`) si le projet le configure ; sinon le revoir à la main de temps en temps.
+- Le digest de l'image Postgres se met à jour à la main (Dependabot ne suit pas les images de `services:`).

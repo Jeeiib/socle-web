@@ -1,6 +1,6 @@
 # .zap/rules.tsv : décision pour chaque règle ZAP (séparateur = TABULATION).
 # Format : ID<TAB>ACTION<TAB>justification. ACTION = IGNORE | INFO | WARN | FAIL.
-# Règle absente = WARN. Chaque IGNORE doit être justifié (docs/securite.md, section « Exceptions »).
+# Règle absente = WARN. Chaque IGNORE doit être justifié (docs/securite.md, « Registre des exceptions »).
 10038	FAIL	CSP absente : toute régression bloque
 10055	WARN	CSP présente mais faible (wildcard, unsafe-inline) : à examiner
 10020	FAIL	Anti-clickjacking (X-Frame-Options ou frame-ancestors) : régression bloquante

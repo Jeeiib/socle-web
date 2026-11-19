@@ -46,6 +46,7 @@ Aucun check requis : le scan tourne après le déploiement, il ne peut pas bloqu
 
 - `.zap/rules.tsv` exige de vraies tabulations ; un éditeur qui les remplace par des espaces rend la règle muette.
 - `workflow_run` ne s'exécute que depuis la branche par défaut : le workflow doit y être fusionné avant de tester le déclenchement automatique.
+- Le workflow se déclenche aussi après un déploiement de production (`workflow_run` sur `Déploiement`) et scanne alors `DAST_URL` : `DAST_URL` doit donc toujours être le staging, jamais la production.
 - Si le workflow de déploiement porte un autre nom que `Déploiement`, adapter `workflows:` dans `dast.yml`.
 - `allow_issue_writing: false` : l'action ne crée pas d'issue (pas de droit `issues: write`) ; le rapport est lu dans l'artefact.
 - Un baseline est passif : il n'attaque pas, il ne remplace ni un test d'intrusion ni la revue de code.
