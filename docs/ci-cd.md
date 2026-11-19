@@ -8,15 +8,16 @@ Trois workflows dans `.github/workflows/` : `ci.yml` (qualité), `security.yml` 
 
 Se déclenche sur chaque PR, sur `main` (hors modifications de `**.md` et `docs/**`) et à la demande.
 
-| Job          | Rôle                                                                                      | Dépend de          |
-| ------------ | ----------------------------------------------------------------------------------------- | ------------------ |
-| `actionlint` | Analyse les workflows (binaire officiel, somme de contrôle vérifiée)                      | rien               |
-| `qualite`    | `pnpm lint`, `pnpm typecheck`, `pnpm format:check`                                        | rien               |
-| `tests`      | `pnpm test:coverage` (seuil de 80 % de lignes bloquant), résumé de couverture dans le run | rien               |
-| `build`      | `pnpm build`                                                                              | `qualite`, `tests` |
-| `docker`     | Construit l'image, la scanne avec Trivy, la lance et teste `/api/health`                  | `qualite`, `tests` |
+| Job          | Rôle                                                                                                          | Dépend de          |
+| ------------ | ------------------------------------------------------------------------------------------------------------- | ------------------ |
+| `actionlint` | Analyse les workflows (binaire officiel, somme de contrôle vérifiée)                                          | rien               |
+| `qualite`    | `pnpm lint`, `pnpm typecheck`, `pnpm format:check`                                                            | rien               |
+| `tests`      | `pnpm test:coverage` (seuil de 80 % de lignes bloquant), résumé de couverture dans le run                     | rien               |
+| `build`      | `pnpm build`                                                                                                  | `qualite`, `tests` |
+| `docker`     | Construit l'image, la scanne avec Trivy, la lance et teste `/api/health`                                      | `qualite`, `tests` |
+| `briques`    | Teste `scripts/ajouter-brique.sh` (`test-ajouter-brique.sh`) puis vérifie les briques (`verifier-briques.sh`) | rien               |
 
-Les cinq noms sont les **checks requis** du ruleset (`.github/rulesets/main.json`). Ne les renommez pas, ne les passez pas en matrice : le nom affiché d'un job de matrice change, et le check requis ne serait plus jamais fourni (la PR resterait bloquée).
+Les six noms sont les **checks requis** du ruleset (`.github/rulesets/main.json`). Ne les renommez pas, ne les passez pas en matrice : le nom affiché d'un job de matrice change, et le check requis ne serait plus jamais fourni (la PR resterait bloquée).
 
 Le job `docker` teste l'image qui sera réellement livrée (`load: true`), pas un build parallèle.
 
@@ -29,9 +30,16 @@ Sur chaque PR, sur `main`, chaque lundi à 6 h UTC (pour détecter les CVE publi
 Se déclenche sur un tag `v*.*.*`.
 
 1. Job `image` : calcule les tags (semver complet, `major.minor` sauf pré-version, SHA court ; pas de `latest`, un tag mobile contredirait le principe d'immuabilité), **construit l'image une seule fois**, la scanne avec Trivy, puis pousse sur GHCR exactement l'image scannée. Règle « build once » : si on reconstruisait entre le scan et la publication, on publierait ce qu'on n'a pas scanné.
+   Le job génère aussi un SBOM CycloneDX de l'image et signe, avec `actions/attest`, deux attestations liées au digest poussé : la provenance (qui a construit l'image, depuis quel commit) et le SBOM. `actions/attest` remplace `attest-build-provenance` et `attest-sbom`, devenus de simples enveloppes. Vérification : [securite.md](securite.md#vérifier-une-image).
 2. Job `release` : crée la release GitHub avec les notes générées. Un tag avec un tiret (`v1.0.0-rc.1`) donne une pré-version, qui ne devient pas la dernière release.
 
 Les tags ne se posent que depuis une `main` verte : le workflow ne revérifie pas la CI, c'est une règle à respecter.
+
+Les notes de release sont générées par GitHub (`--generate-notes`) à partir des titres de PR : comme ils suivent les Conventional Commits, il n'y a rien de plus à écrire.
+
+### Workflows apportés par les briques
+
+Certaines briques déposent leur propre workflow dans `.github/workflows/` (déploiement, IaC, scan ZAP, tests d'intégration). Ils suivent les mêmes règles que ceux du socle (SHA, droits minimaux, `timeout-minutes`, pas de `${{ }}` dans un `run:`), et leur fiche `BRIQUE.md` dit s'il faut ajouter un check au ruleset (`checks-requis`). N'ajoutez pas de `paths-ignore` à un workflow dont un job est requis (voir « Les deux pièges du cours »).
 
 ## Pourquoi épingler les actions par SHA
 

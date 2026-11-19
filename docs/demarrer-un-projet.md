@@ -42,9 +42,27 @@ scripts/appliquer-ruleset.sh
 
 Le script lit `.github/rulesets/main.json` et crée ou met à jour le ruleset `main` (il est idempotent). Il utilise `gh`, qui doit être connecté (`gh auth login`). Vous pouvez viser un autre dépôt : `scripts/appliquer-ruleset.sh <vous>/<votre-projet>`.
 
-Effet : plus de push direct sur `main`, historique linéaire, fusion en squash uniquement, fils de revue résolus, et les cinq checks `qualite`, `tests`, `build`, `docker`, `actionlint` obligatoires et à jour avec `main`. Aucun contournement n'est prévu (`bypass_actors` vide).
+Effet : plus de push direct sur `main`, historique linéaire, fusion en squash uniquement, fils de revue résolus, et les six checks `qualite`, `tests`, `build`, `docker`, `actionlint`, `briques` obligatoires et à jour avec `main`. Aucun contournement n'est prévu (`bypass_actors` vide).
 
-## 5. Régler le dépôt
+## 5. Choisir ses briques
+
+Le tableau « Catalogue de briques » du [README](../README.md#catalogue-de-briques) liste ce qui existe, avec le rôle et les prérequis de chaque brique. Le skill `socle-repo` aide à choisir selon le projet. Pour ajouter une brique, depuis la racine du projet :
+
+```bash
+SOCLE_DIR=<clone du socle> scripts/ajouter-brique.sh <nom>
+```
+
+Le script copie les fichiers de la brique, la note dans `.socle/briques` et affiche sa rubrique « Activation » : c'est la suite à dérouler (secrets, variables, check à ajouter au ruleset). Les fiches `BRIQUE.md` restent dans le catalogue du socle.
+
+Une fois les briques choisies, supprimez ce qui ne sert qu'au catalogue :
+
+- le dossier `briques/` ;
+- `scripts/test-ajouter-brique.sh` et `scripts/verifier-briques.sh` ;
+- le job `briques` de `.github/workflows/ci.yml` et son check dans `.github/rulesets/main.json` (sinon la PR attend un check qui ne tourne plus).
+
+`scripts/ajouter-brique.sh` reste, pour ajouter une brique plus tard : `SOCLE_DIR` pointe alors sur un clone du socle. Le ruleset étant déjà appliqué à l'étape 4, relancez `scripts/appliquer-ruleset.sh` après avoir retiré le check `briques` de `.github/rulesets/main.json`.
+
+## 6. Régler le dépôt
 
 Dans **Settings** du dépôt :
 
@@ -63,7 +81,7 @@ CodeQL tourne déjà via le workflow avancé `.github/workflows/security.yml` (j
 
 Dependabot ouvre ses PR avec les préfixes `build(deps)` et `ci(deps)` : ils respectent le hook de commit-msg.
 
-## 6. Brancher Vercel
+## 7. Brancher Vercel
 
 1. Sur Vercel, **Add New Project** puis importez le dépôt.
 2. Gardez les réglages par défaut (framework Next.js détecté, gestionnaire pnpm détecté via `packageManager`).
@@ -73,7 +91,7 @@ Variables d'environnement : définissez-les dans Vercel, jamais dans le dépôt.
 
 L'image Docker reste disponible si vous préférez auto-héberger (voir [docker.md](docker.md)).
 
-## 7. Premier tag
+## 8. Premier tag
 
 Une fois `main` verte (jamais avant), cutez la première version :
 
@@ -83,7 +101,7 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-Le workflow `release.yml` construit l'image, la scanne avec Trivy, la publie sur GHCR (`ghcr.io/<vous>/<votre-projet>`) et crée la release GitHub. Un tag avec un tiret (`v1.0.0-rc.1`) crée une pré-version.
+Le workflow `release.yml` construit l'image, la scanne avec Trivy, la publie sur GHCR (`ghcr.io/<vous>/<votre-projet>`), génère le SBOM et les attestations de provenance et de SBOM, puis crée la release GitHub. Un tag avec un tiret (`v1.0.0-rc.1`) crée une pré-version.
 
 Les tags ne se posent que depuis une `main` verte : le workflow ne revérifie pas la CI, c'est une règle d'équipe.
 

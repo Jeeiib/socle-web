@@ -23,6 +23,10 @@ pnpm lint && pnpm typecheck && pnpm format:check && pnpm test:coverage && pnpm b
 - Aucun `${{ }}` d'entrée utilisateur dans un `run:` : passer par `env:`.
 - Pas de filtre `paths` sur `pull_request` (le check requis ne serait jamais fourni).
 
+## Briques
+
+`briques/` est le catalogue de briques optionnelles (fiche `BRIQUE.md` par brique, voir `briques/README.md`). Après toute modification : `bash scripts/test-ajouter-brique.sh && bash scripts/verifier-briques.sh` (le job `briques`, requis, les rejoue en CI).
+
 ## Docker et secrets
 
 - L'image reste non-root (`USER node`), base en tag précis, jamais `latest`.
