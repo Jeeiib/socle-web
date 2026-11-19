@@ -324,17 +324,19 @@ verifier_ansible() {
 }
 
 # --- logs-metriques-next : la brique appliquée à une copie du socle (fichiers versionnés, HEAD),
-# prom-client ajouté comme le dit la fiche, puis tests, typage et lint du projet dérivé.
+# prom-client ajouté comme le dit la fiche, puis couverture, typage, lint et build du projet dérivé.
 verifier_logs_metriques_next() {
   local app="$tmp/logs-metriques-next"
   mkdir -p "$app"
   git archive HEAD | tar -x -C "$app"
+  # Comme dans un projet dérivé : le catalogue est retiré avant d'appliquer la brique.
+  rm -rf "$app/briques"
   SOCLE_DIR="$racine" bash scripts/ajouter-brique.sh logs-metriques-next "$app" >/dev/null || return 1
   (
     cd "$app"
     pnpm install --frozen-lockfile >/dev/null || exit 1
     pnpm add prom-client@^15 >/dev/null || exit 1
-    pnpm test && pnpm typecheck && pnpm lint
+    pnpm test:coverage && pnpm typecheck && pnpm lint && pnpm build
   )
 }
 
@@ -353,8 +355,8 @@ EOP
   (
     cd "$app"
     pnpm add --ignore-workspace express@^5 prom-client@^15 >/dev/null || exit 1
-    pnpm add --ignore-workspace -D vitest@^5 supertest@^7 >/dev/null || exit 1
-    pnpm exec vitest run
+    pnpm add --ignore-workspace -D vitest@^5 @vitest/coverage-v8@^5 supertest@^7 >/dev/null || exit 1
+    pnpm exec vitest run --coverage
   )
 }
 
@@ -390,6 +392,36 @@ verifier_monitoring() {
     return 1
   fi
 }
+
+# --- remplace: : le fichier remplacé doit exister dans une brique (prérequis) avec exactement ce sha256.
+# Si la brique de base change ce fichier, la fiche qui le remplace doit être mise à jour.
+sha_fichier() {
+  if command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | cut -d' ' -f1; else sha256sum "$1" | cut -d' ' -f1; fi
+}
+verifier_remplace() {
+  local b fiche remplace prerequis chemin attendu p trouve
+  for b in $selection; do
+    fiche="briques/$b/BRIQUE.md"
+    remplace="$(awk '/^---[[:space:]]*$/ { n++; next } n == 1 && index($0, "remplace:") == 1 { sub("^remplace:[[:space:]]*", ""); print; exit }' "$fiche")"
+    [ -n "$remplace" ] || continue
+    prerequis="$(awk '/^---[[:space:]]*$/ { n++; next } n == 1 && index($0, "prerequis:") == 1 { sub("^prerequis:[[:space:]]*", ""); print; exit }' "$fiche")"
+    for r in $remplace; do
+      chemin="${r%@*}"
+      attendu="${r#*@}"
+      trouve=0
+      for p in $prerequis; do
+        if [ -f "briques/$p/$chemin" ] && [ "$(sha_fichier "briques/$p/$chemin")" = "$attendu" ]; then
+          trouve=1
+        fi
+      done
+      if [ "$trouve" = 0 ]; then
+        echo "$b : aucun prérequis ne fournit $chemin avec le sha256 $attendu"
+        return 1
+      fi
+    done
+  done
+}
+if verifier_remplace; then reussi "remplace"; else echec "remplace"; fi
 
 # --- contrôles propres à chaque brique
 for b in $selection; do

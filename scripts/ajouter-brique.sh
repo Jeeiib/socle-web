@@ -33,7 +33,8 @@ elif [ -d "$ici/../briques" ]; then
 else
   tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' EXIT
-  curl -sSfL "https://codeload.github.com/Jeeiib/socle-web/tar.gz/main" | tar -xz -C "$tmp"
+  curl -sSfL "https://codeload.github.com/Jeeiib/socle-web/tar.gz/main" | tar -xz -C "$tmp" \
+    || { echo "Téléchargement impossible" >&2; exit 1; }
   source_briques="$(echo "$tmp"/*/briques)"
 fi
 
