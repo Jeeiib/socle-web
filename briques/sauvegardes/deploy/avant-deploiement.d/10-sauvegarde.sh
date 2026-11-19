@@ -17,6 +17,7 @@ fi
 existants="$(docker compose ps -a --services)" || fail "docker compose ps -a a échoué"
 grep -qx db <<<"$existants" && fail "le conteneur db existe mais ne tourne pas"
 projet="$(docker compose config | sed -n 's/^name: //p')"
+[ -n "$projet" ] || fail "nom de projet compose introuvable (Compose 2.20 ou plus requis)"
 volumes="$(docker volume ls -q --filter "label=com.docker.compose.project=$projet" --filter "label=com.docker.compose.volume=db-data")" || fail "docker volume ls a échoué"
 [ -z "$volumes" ] || fail "le volume de données db existe mais la base ne tourne pas"
 echo "Base jamais créée : sauvegarde ignorée (premier déploiement)"

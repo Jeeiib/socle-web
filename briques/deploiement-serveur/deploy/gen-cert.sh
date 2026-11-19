@@ -23,7 +23,7 @@ if command -v openssl >/dev/null 2>&1; then
 else
   # Sans openssl local : un conteneur Alpine écrit les fichiers dans le dossier monté.
   docker run --rm -v "$(cd "$CERT_DIR" && pwd):/out" docker.io/library/alpine:3.21 \
-    sh -c "apk add --no-cache openssl >/dev/null && openssl ${args[*]@Q} -keyout /out/app.key -out /out/app.crt 2>/dev/null"
+    sh -c "apk add --no-cache openssl >/dev/null && openssl $(printf '%q ' "${args[@]}") -keyout /out/app.key -out /out/app.crt 2>/dev/null"
 fi
 
 chmod 600 "$CERT_DIR/app.key"

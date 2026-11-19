@@ -30,10 +30,10 @@ Aucune brique bloquante. Le workflow `Release` du socle (tags `vX.Y.Z`, image su
 - `compose.prod.yaml` : service `app` (image `${IMAGE}:${IMAGE_TAG}`, système de fichiers en lecture seule avec tmpfs pour `/tmp` et `/app/.next/cache`, healthcheck identique à celui du `Dockerfile`) et service `proxy` (Nginx épinglé par digest, seul à publier les ports 80 et 443). Projet et réseau nommés `app-prod`.
 - `.env.prod.example` : modèle du `.env` du serveur (`COMPOSE_FILE`, `IMAGE`, `IMAGE_TAG`).
 - `deploy/deploy.sh` : valide le tag, lance les scripts de `deploy/avant-deploiement.d/` (ordre alphabétique, un échec arrête tout), tire l'image, démarre, recharge Nginx, lance le smoke test. Smoke test rouge : retour à la version précédente, puis code 1. Écrit `.previous_tag` et `.deployed_tag`.
-- `deploy/smoke-test.sh` : attend jusqu'à 60 s que `/api/health` réponde 200 avec la bonne version. Variable `BASE_URL` (défaut `https://localhost`).
+- `deploy/smoke-test.sh` : attend jusqu'à 60 s que `/api/health` réponde 200 avec la bonne version. Variable `BASE_URL` ; à défaut, `deploy.sh` la dérive de `HTTPS_PORT` lu dans `.env` (`https://localhost:<port>`, ou `https://localhost` si le port est 443).
 - `deploy/valider-tag.sh` et `deploy/test-valider-tag.sh` : le tag doit valoir `vX.Y.Z` ou `vX.Y.Z-rc.1`, rien d'autre n'atteint un shell.
 - `deploy/gen-cert.sh` : certificat auto-signé (`certs/app.crt`, `certs/app.key`).
-- `deploy/nginx/app.conf` : redirection 80 vers 443, TLS 1.2 minimum, HSTS, `/api/metrics` refusé au public (404), proxy vers `app:3000`.
+- `deploy/nginx/app.conf` : redirection 80 vers 443, TLS 1.2 minimum, `/api/metrics` et `/metrics` refusés au public (404), proxy vers `app:3000`.
 - `deploy/avant-deploiement.d/` : point d'extension, vide au départ (la brique sauvegardes y dépose son script).
 - `.github/workflows/deploy.yml` : workflow `Déploiement`, job `deployer`, environnement `production`.
 
@@ -90,10 +90,11 @@ Une migration destructrice dans le même déploiement que le code qui l'utilise 
 
 - `bash scripts/verifier-briques.sh deploiement-serveur` : tests du validateur, puis déploiement complet en local (image du socle, Nginx TLS sur le port 18443, rollback sur version erronée, tag invalide refusé).
 - Sur le serveur : `cat .deployed_tag .previous_tag`, `docker compose ps`, `curl -k https://localhost/api/health`.
-- Depuis l'extérieur : `curl -I http://exemple.fr` répond 301 vers HTTPS, et l'en-tête `Strict-Transport-Security` est présent sur HTTPS.
+- Depuis l'extérieur : `curl -I http://exemple.fr` répond 301 vers HTTPS, et l'en-tête `Strict-Transport-Security` est présent sur HTTPS (envoyé par l'application, pas par Nginx).
 
 ## Pièges connus
 
+- Nginx n'envoie pas `Strict-Transport-Security` : c'est l'application qui le pose (le socle Next le fait). Une application Express doit l'envoyer elle-même, ou on remet dans `deploy/nginx/app.conf`, bloc 443 : `add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;`.
 - `deploy.yml` s'appelle `Déploiement` : la brique `dast-zap` le déclenche par ce nom.
 - `workflow_run` ne s'exécute que depuis la branche par défaut, et `head_branch` contient le nom du tag pour un push de tag. Le workflow doit être fusionné sur `main` avant le premier test.
 - Le smoke test compare la version sans le `v` initial : les images sont taguées `1.2.3`, pas `v1.2.3`. `APP_VERSION` est passé au build par `release.yml` ; sans lui `/api/health` répondrait `dev`.

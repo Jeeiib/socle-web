@@ -14,6 +14,13 @@ cd "$dossier"
 if [ -z "${COMPOSE_FILE:-}" ] && ! grep -q '^COMPOSE_FILE=' .env; then
   export COMPOSE_FILE=compose.prod.yaml
 fi
+# Le smoke test vise HTTPS_PORT (environnement, sinon .env) si BASE_URL n'est pas fourni.
+if [ -z "${BASE_URL:-}" ]; then
+  port="${HTTPS_PORT:-$(sed -n 's/^HTTPS_PORT=//p' .env | tail -n 1)}"
+  if [ -n "$port" ] && [ "$port" != 443 ]; then
+    export BASE_URL="https://localhost:$port"
+  fi
+fi
 
 # Point d'extension : sauvegarde, migrations... Un échec arrête le déploiement.
 for script in deploy/avant-deploiement.d/*; do
