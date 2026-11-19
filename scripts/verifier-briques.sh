@@ -106,7 +106,7 @@ verifier_deploiement_serveur() {
     # shellcheck disable=SC2329 # appelée par le trap
     nettoyer() {
       (cd "$srv" 2>/dev/null && docker compose down -v --remove-orphans >/dev/null 2>&1) || true
-      docker rmi -f socle-verif:0.0.0-test socle-verif:0.0.1-test >/dev/null 2>&1 || true
+      docker rmi -f socle-verif:0.0.0-test socle-verif:0.0.1-test socle-verif:0.0.2-test >/dev/null 2>&1 || true
     }
     trap nettoyer EXIT
 
@@ -125,13 +125,30 @@ verifier_deploiement_serveur() {
     echo "-- relance du même tag (idempotence)"
     (cd "$srv" && ./deploy/deploy.sh v0.0.0-test) || exit 1
 
+    echo "-- /api/metrics refusé au public"
+    code="$(curl -ks -o /dev/null -w '%{http_code}' "$BASE_URL/api/metrics")"
+    [ "$code" = 404 ] || { echo "/api/metrics attendu 404, obtenu $code"; exit 1; }
+
+    echo "-- seconde version réussie : .previous_tag = première"
+    docker build -q --build-arg APP_VERSION=0.0.2-test -t socle-verif:0.0.2-test . >/dev/null || exit 1
+    (cd "$srv" && ./deploy/deploy.sh v0.0.2-test) || exit 1
+    [ "$(cat "$srv/.previous_tag")" = v0.0.0-test ] || { echo ".previous_tag attendu : v0.0.0-test"; exit 1; }
+
     echo "-- déploiement en échec : retour automatique attendu"
     if (cd "$srv" && SMOKE_RETRIES=3 SMOKE_DELAY=1 ./deploy/deploy.sh v0.0.1-test); then
       echo "Le déploiement d'une version erronée aurait dû échouer"
       exit 1
     fi
-    [ "$(cat "$srv/.deployed_tag")" = v0.0.0-test ] || { echo "rollback : .deployed_tag attendu v0.0.0-test"; exit 1; }
-    "$brique/deploy/smoke-test.sh" 0.0.0-test >/dev/null || { echo "rollback : service non rétabli"; exit 1; }
+    [ "$(cat "$srv/.deployed_tag")" = v0.0.2-test ] || { echo "rollback : .deployed_tag attendu v0.0.2-test"; exit 1; }
+    [ "$(cat "$srv/.previous_tag")" = v0.0.0-test ] || { echo "rollback : .previous_tag doit rester v0.0.0-test"; exit 1; }
+    "$brique/deploy/smoke-test.sh" 0.0.2-test >/dev/null || { echo "rollback : service non rétabli"; exit 1; }
+
+    echo "-- échec sur le tag déjà en place : aucun retour arrière"
+    docker tag socle-verif:0.0.0-test socle-verif:0.0.2-test
+    sortie="$(cd "$srv" && SMOKE_RETRIES=3 SMOKE_DELAY=1 ./deploy/deploy.sh v0.0.2-test 2>&1)" && { echo "Le redéploiement erroné aurait dû échouer"; exit 1; }
+    case "$sortie" in *"Retour automatique"*) echo "Retour arrière inattendu sur le tag en place"; exit 1 ;; esac
+    [ "$(cat "$srv/.deployed_tag")" = v0.0.2-test ] || { echo ".deployed_tag modifié à tort"; exit 1; }
+    [ "$(cat "$srv/.previous_tag")" = v0.0.0-test ] || { echo ".previous_tag modifié à tort"; exit 1; }
     echo "-- tag invalide refusé"
     if (cd "$srv" && ./deploy/deploy.sh '1.2.3' >/dev/null 2>&1); then
       echo "Un tag invalide aurait dû être refusé"

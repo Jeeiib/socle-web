@@ -98,6 +98,10 @@ Une migration destructrice dans le même déploiement que le code qui l'utilise 
 - `workflow_run` ne s'exécute que depuis la branche par défaut, et `head_branch` contient le nom du tag pour un push de tag. Le workflow doit être fusionné sur `main` avant le premier test.
 - Le smoke test compare la version sans le `v` initial : les images sont taguées `1.2.3`, pas `v1.2.3`. `APP_VERSION` est passé au build par `release.yml` ; sans lui `/api/health` répondrait `dev`.
 - Le healthcheck de `compose.prod.yaml` est copié du `Dockerfile` : en modifier un sans l'autre fausse `--wait`.
+- Concurrence : GitHub ne garde qu'un seul run en attente par groupe `concurrency`. Deux releases poussées à quelques minutes d'écart peuvent faire sauter le déploiement de celle du milieu ; le dernier tag gagne.
+- `scp -r` ajoute et remplace des fichiers mais ne supprime rien : un script retiré de `deploy/avant-deploiement.d/` dans le dépôt reste actif sur le serveur tant qu'on ne l'y supprime pas.
+- Un lancement manuel (`workflow_dispatch`) utilise les scripts de `deploy/` du dernier commit de la branche par défaut, pas ceux du tag à déployer.
+- `.previous_tag` = version en place avant le dernier déploiement réussi ; un échec ne le modifie pas. Un déploiement qui échoue sur le tag déjà en place ne déclenche aucun retour automatique (sinon retour arrière silencieux).
 - Jamais `StrictHostKeyChecking=no` : sans `DEPLOY_KNOWN_HOSTS` exact, la connexion échoue, et c'est voulu.
 - Nginx résout `app` au démarrage : `deploy.sh` recharge le proxy après chaque déploiement, sinon il garde l'ancienne adresse.
 - `docker compose pull --policy missing` : une version déjà présente sur le serveur n'est pas re-téléchargée. Les tags de version sont immuables ; ne jamais republier un tag.

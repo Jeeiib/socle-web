@@ -36,7 +36,6 @@ jobs:
       DEPLOY_USER: ${{ vars.DEPLOY_USER }}
       DEPLOY_DIR: ${{ vars.DEPLOY_DIR }}
       GHCR_ACTOR: ${{ github.actor }}
-      GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       # Le dépôt fournit valider-tag.sh et les fichiers à copier ; aucun secret n'est encore chargé.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -67,6 +66,8 @@ jobs:
           scp -r compose.prod.yaml deploy "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_DIR/"
 
       - name: Se connecter à ghcr.io depuis le serveur
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           # shellcheck disable=SC2029 # valeurs de variables de dépôt, développées côté client voulu

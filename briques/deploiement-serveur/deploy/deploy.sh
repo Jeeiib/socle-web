@@ -35,34 +35,31 @@ deployer() {
 
 actuel=""
 [ -f .deployed_tag ] && actuel="$(cat .deployed_tag)"
-# La version en place est la cible du rollback ; relancer le même tag ne l'écrase pas.
-if [ -n "$actuel" ] && [ "$actuel" != "$TAG" ]; then
-  echo "$actuel" > .previous_tag
-fi
-
 if deployer "$TAG"; then
+  # .previous_tag = version qui tournait avant ce déploiement réussi (cible d'un retour arrière manuel).
+  if [ -n "$actuel" ] && [ "$actuel" != "$TAG" ]; then
+    echo "$actuel" > .previous_tag
+  fi
   echo "$TAG" > .deployed_tag
-  docker image prune -f >/dev/null
+  docker image prune -f >/dev/null || echo "Avertissement : nettoyage des images impossible (déploiement réussi)." >&2
   echo "==> Déployé : $TAG (précédent : $(cat .previous_tag 2>/dev/null || echo aucun))"
   exit 0
 fi
 
 echo "ÉCHEC du déploiement de $TAG" >&2
-retour=""
-if [ -n "$actuel" ] && [ "$actuel" != "$TAG" ]; then
-  retour="$actuel"
-elif [ -f .previous_tag ]; then
-  retour="$(cat .previous_tag)"
-fi
-if [ -z "$retour" ]; then
+if [ -z "$actuel" ]; then
   echo "Aucune version précédente connue : intervention manuelle." >&2
   exit 1
 fi
-echo "==> Retour automatique à $retour" >&2
-if deployer "$retour"; then
-  echo "$retour" > .deployed_tag
-  echo "Service rétabli sur $retour ; le déploiement de $TAG reste en échec." >&2
+if [ "$actuel" = "$TAG" ]; then
+  # Redéployer une version plus ancienne ici serait un retour arrière silencieux.
+  echo "$TAG était déjà la version en place : pas de retour automatique, intervention manuelle." >&2
+  exit 1
+fi
+echo "==> Retour automatique à $actuel" >&2
+if deployer "$actuel"; then
+  echo "Service rétabli sur $actuel ; le déploiement de $TAG reste en échec." >&2
 else
-  echo "Le retour à $retour a aussi échoué : intervention manuelle." >&2
+  echo "Le retour à $actuel a aussi échoué : intervention manuelle." >&2
 fi
 exit 1
