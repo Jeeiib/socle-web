@@ -1,0 +1,181 @@
+# Infrastructure du staging en code : validation sur chaque PR, plan commenté, dérive hebdomadaire.
+# Ce workflow ne fait jamais d'apply : l'apply se lance à la main (voir BRIQUE.md).
+name: IaC
+
+on:
+  pull_request:
+    paths:
+      - "infra/**"
+      - ".github/workflows/iac.yml"
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: iac-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  TOFU_VERSION: "1.13.9"
+  TF_IN_AUTOMATION: "1"
+  TF_INPUT: "0"
+
+jobs:
+  validate:
+    name: iac-validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
+          tofu_wrapper: false
+
+      - name: tofu fmt -check
+        run: tofu fmt -check -recursive -diff
+
+      - name: tofu init
+        run: tofu init -backend=false -lockfile=readonly
+
+      - name: tofu validate
+        run: tofu validate
+
+  plan:
+    name: iac-plan
+    needs: validate
+    # Un fork ou Dependabot n'a pas accès aux secrets : le plan n'a de sens que pour le dépôt lui-même.
+    if: >-
+      (github.event_name != 'pull_request'
+      || github.event.pull_request.head.repo.full_name == github.repository)
+      && github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: staging
+    permissions:
+      contents: read
+      pull-requests: write
+    defaults:
+      run:
+        working-directory: infra
+    env:
+      DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+      IAC_STATE_DIR: ${{ vars.IAC_STATE_DIR }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
+          tofu_wrapper: false
+
+      - name: Préparer SSH
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          eval "$(ssh-agent -s)"
+          printf '%s\n' "$SSH_KEY" | ssh-add -
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
+          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> "$GITHUB_ENV"
+
+      # Le state vit sur le serveur ; le plan en travaille sur une copie, rien n'y est renvoyé.
+      - name: Récupérer le state
+        run: |
+          set -euo pipefail
+          scp "$DEPLOY_USER@$DEPLOY_HOST:$IAC_STATE_DIR/terraform.tfstate" terraform.tfstate \
+            || { echo "::error::State absent dans $IAC_STATE_DIR sur le serveur (voir la fiche, étape import)"; exit 1; }
+          chmod 600 terraform.tfstate
+
+      - name: tofu init
+        run: tofu init -lockfile=readonly -backend-config="path=terraform.tfstate"
+
+      - name: Variables OpenTofu
+        run: |
+          set -euo pipefail
+          # Sans sortie dans le state, latest : le plan montrera l'écart.
+          tag="$(tofu output -raw image_tag 2>/dev/null || true)"
+          {
+            echo "TF_VAR_docker_host=ssh://$DEPLOY_USER@$DEPLOY_HOST"
+            echo "TF_VAR_image=ghcr.io/${GITHUB_REPOSITORY,,}"
+            echo "TF_VAR_image_tag=${tag:-latest}"
+          } >> "$GITHUB_ENV"
+
+      # Code de sortie : 0 = rien à faire, 1 = erreur, 2 = changements.
+      - name: tofu plan
+        id: plan
+        run: |
+          set +e
+          tofu plan -no-color -lock-timeout=120s -detailed-exitcode -out=tfplan > plan.log 2>&1
+          code=$?
+          set -e
+          cat plan.log
+          echo "exitcode=$code" >> "$GITHUB_OUTPUT"
+          if [ "$code" = 1 ]; then echo "::error::tofu plan a échoué"; exit 1; fi
+          tofu show -no-color tfplan > plan.txt
+
+      - name: Publier le plan dans le résumé
+        env:
+          EXITCODE: ${{ steps.plan.outputs.exitcode }}
+        run: |
+          summary="$(grep -E '^(Plan:|No changes\.)' plan.log | tail -n 1 || true)"
+          {
+            echo "### Plan OpenTofu : staging"
+            echo
+            echo "**${summary:-voir le log}** (image : \`$TF_VAR_image_tag\`)"
+            echo
+            echo "<details><summary>Plan complet</summary>"
+            echo
+            echo '```'
+            head -c 60000 plan.txt
+            echo '```'
+            echo "</details>"
+          } | tee plan.md >> "$GITHUB_STEP_SUMMARY"
+          if [ "$EXITCODE" = 2 ] && [ "$GITHUB_EVENT_NAME" != "pull_request" ]; then
+            echo "::error::Dérive détectée : le staging ne correspond plus au code de main"
+            exit 1
+          fi
+
+      - name: Commenter la PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- iac-plan -->';
+            const body = `${marker}\n${fs.readFileSync('infra/plan.md', 'utf8')}`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number,
+            });
+            const previous = comments.find((c) => c.body.startsWith(marker));
+            if (previous) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: previous.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+      # Le state contient le mot de passe de la base : rien ne doit rester sur le runner.
+      - name: Nettoyer
+        if: always()
+        run: |
+          rm -f tfplan plan.txt plan.log plan.md terraform.tfstate terraform.tfstate.backup
+          if [ -n "${SSH_AGENT_PID:-}" ]; then ssh-agent -k >/dev/null || true; fi

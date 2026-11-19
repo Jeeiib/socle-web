@@ -7,6 +7,9 @@ set -euo pipefail
 IMAGE_SHELLCHECK="koalaman/shellcheck:v0.11.0@sha256:61862eba1fcf09a484ebcc6feea46f1782532571a34ed51fedf90dd25f925a8d"
 IMAGE_ACTIONLINT="rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667"
 IMAGE_COMPOSE="docker:29.0.0-cli@sha256:87858a6dd14149240f4a2c33e0ec0f32a5ac1bb2548c04f5a20694ea25cb6157"
+IMAGE_TOFU="ghcr.io/opentofu/opentofu:1.13.9@sha256:f5aef7f2632b490e3c289a239d7974497d0583f3df6bfa35e8eb31a367ee5ec0"
+IMAGE_PYTHON="python:3.13-slim@sha256:e48f59cdba69a3cbd9ed2cf0f348d90d45a8d350d98134cf1070bc106ee9ed90"
+ANSIBLE_CORE_VERSION="2.20.11"
 
 racine="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$racine"
@@ -216,6 +219,43 @@ EOS
     if PATH="$srv/faux:$PATH" ./deploy/backup.sh >/dev/null 2>&1; then echo "un dump vide aurait dû être refusé"; exit 1; fi
     [ "$(find backups -name 'appdb-*.sql.gz*' | wc -l)" = "$avant" ] || { echo "fichier laissé par un dump vide"; exit 1; }
   )
+}
+
+# --- iac-opentofu : format, init sans backend (lockfile en lecture seule) et validation, sur une copie.
+verifier_iac_opentofu() {
+  local infra="$tmp/iac-infra"
+  mkdir -p "$infra"
+  cp -R briques/iac-opentofu/infra/. "$infra/"
+  local tofu=(docker run --rm -v "$infra:/infra" -w /infra "$IMAGE_TOFU")
+  "${tofu[@]}" fmt -check -recursive -diff || return 1
+  "${tofu[@]}" init -backend=false -lockfile=readonly -input=false >/dev/null || return 1
+  "${tofu[@]}" validate || return 1
+}
+
+# --- ansible : syntaxe, puis deux passages réels en connexion locale dans un dossier temporaire.
+# Le premier doit changer des choses, le second afficher changed=0 (idempotence).
+verifier_ansible() {
+  local jeu="$tmp/ansible"
+  mkdir -p "$jeu/home"
+  cp -R briques/ansible/ansible/. "$jeu/"
+  printf '[prod]\nlocalhost ansible_connection=local ansible_python_interpreter=auto_silent\n' > "$jeu/inventaire-local.ini"
+  docker run --rm -v "$jeu:/jeu" -w /jeu -e HOME=/jeu/home -e ANSIBLE_NOCOLOR=1 "$IMAGE_PYTHON" bash -c '
+    set -euo pipefail
+    pip install -q --no-cache-dir --root-user-action=ignore "ansible-core=='"$ANSIBLE_CORE_VERSION"'" >/dev/null
+    ansible-playbook --syntax-check -i inventory.ini.example preparer-prod.yml -e image=ghcr.io/exemple/projet
+    lancer() {
+      ansible-playbook -i inventaire-local.ini preparer-prod.yml \
+        -e image=ghcr.io/exemple/projet -e prod_dir=/jeu/prod -e app_user=root -e app_become=false
+    }
+    lancer > passage1.log || { cat passage1.log; exit 1; }
+    lancer > passage2.log || { cat passage2.log; exit 1; }
+    grep -E "ok=.*changed=" passage1.log passage2.log
+    grep -Eq "changed=0 " passage2.log || { echo "le second passage change encore des choses"; cat passage2.log; exit 1; }
+    ! grep -Eq "changed=0 " passage1.log || { echo "le premier passage ne devrait rien changer ?"; exit 1; }
+    [ "$(stat -c %a prod/.env)" = 600 ] || { echo ".env doit etre en 0600"; exit 1; }
+    grep -q "^IMAGE=ghcr.io/exemple/projet$" prod/.env
+    [ "$(sed -n "s/^POSTGRES_PASSWORD=//p" prod/.env | wc -c)" = 33 ] || { echo "mot de passe de 32 caracteres attendu"; exit 1; }
+  '
 }
 
 # --- contrôles propres à chaque brique

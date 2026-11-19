@@ -1,0 +1,5 @@
+# Copier en terraform.tfvars (ignoré par Git).
+# docker_host = "ssh://deploy@203.0.113.10"
+image     = "ghcr.io/mon-organisation/mon-projet"
+image_tag = "latest"
+app_port  = 8081

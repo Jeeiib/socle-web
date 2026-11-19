@@ -1,0 +1,77 @@
+# Prépare le dossier de production d'un serveur : dossier, certs/, .env en 0600.
+#   ansible-playbook -i inventory.ini preparer-prod.yml -e image=ghcr.io/mon-organisation/mon-projet
+#   ansible-playbook -i inventory.ini preparer-prod.yml -e image=... --check --diff   # simulation
+# Le mot de passe Postgres est généré au premier passage sur la machine qui lance Ansible,
+# gardé hors du dépôt (password_file, 0600) et relu aux passages suivants.
+- name: Préparer le dossier de production
+  hosts: prod
+  gather_facts: true # ansible_facts['env']['HOME']
+  vars:
+    prod_dir: /srv/app
+    app_user: deploy
+    app_become: true # false si l'on se connecte déjà avec le propriétaire du dossier
+    image: "{{ undef(hint='Passez -e image=ghcr.io/<organisation en minuscules>/<projet>') }}"
+    image_tag: 0.0.0 # valeur initiale, deploy.sh la remplace à chaque déploiement
+    compose_file: compose.prod.yaml # ajouter :compose.postgres.yaml avec la brique sauvegardes
+    password_file: "{{ ansible_facts['env']['HOME'] }}/.config/socle/postgres-password"
+    db_password: "{{ lookup('ansible.builtin.password', password_file, chars=['ascii_letters', 'digits'], length=32) }}"
+
+  pre_tasks:
+    - name: Vérifier les variables
+      ansible.builtin.assert:
+        that:
+          - image is match('^[a-z0-9][a-z0-9./_-]*$')
+          - image_tag is match('^[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$')
+        fail_msg: "image doit être en minuscules et sans tag (ghcr.io refuse les majuscules)"
+        quiet: true
+
+  tasks:
+    - name: Créer le dossier du mot de passe (hors dépôt)
+      ansible.builtin.file:
+        path: "{{ password_file | dirname }}"
+        state: directory
+        mode: "0700"
+      delegate_to: localhost
+      become: false
+
+    - name: Créer le dossier de production et certs/
+      ansible.builtin.file:
+        path: "{{ prod_dir }}/{{ item.path }}"
+        state: directory
+        owner: "{{ app_user }}"
+        mode: "{{ item.mode }}"
+      become: "{{ app_become | bool }}"
+      loop:
+        - { path: "", mode: "0750" }
+        - { path: certs, mode: "0700" } # clé privée TLS
+
+    - name: "Écrire le .env (secrets : 0600, jamais dans Git)"
+      ansible.builtin.template:
+        src: env.j2
+        dest: "{{ prod_dir }}/.env"
+        mode: "0600"
+      notify: Relancer la stack
+
+  handlers:
+    - name: Lister les services en marche
+      ansible.builtin.command:
+        cmd: docker compose ps --services --status running
+        chdir: "{{ prod_dir }}"
+      register: services_en_marche
+      changed_when: false
+      failed_when: false # la stack n'est pas forcément lancée, ni Docker installé
+      listen: Relancer la stack
+
+    # Un .env modifié n'est relu qu'à la recréation des conteneurs ; la version en place vient de .deployed_tag.
+    - name: Recréer la stack avec le nouveau .env
+      ansible.builtin.shell:
+        cmd: |
+          set -eu
+          tag="$(cat .deployed_tag)"
+          IMAGE_TAG="${tag#v}" docker compose up -d --wait --wait-timeout 120
+        executable: /bin/bash
+        chdir: "{{ prod_dir }}"
+      when:
+        - services_en_marche.stdout_lines | default([]) | length > 0
+      changed_when: true
+      listen: Relancer la stack
